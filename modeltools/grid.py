@@ -311,7 +311,7 @@ def fwd_azimuth(lon1,lat1,lon2,lat2) :
    
 
 
-def plotgrid(lon,lat,width=3000000,height=3000000) :
+def plotgrid(lon,lat,width=3000000,height=3000000,fld) :
    import matplotlib
    from matplotlib.figure import Figure
    from matplotlib.backends.backend_agg import FigureCanvasAgg
@@ -338,7 +338,6 @@ def plotgrid(lon,lat,width=3000000,height=3000000) :
 
    x=x[::stepx,::stepy]
    y=y[::stepx,::stepy]
-
 
    m.drawcoastlines()
    m.drawmapboundary() # draw a line around the map region

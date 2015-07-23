@@ -23,6 +23,7 @@ class AFileError(Exception) :
 
 
 class AFile(object) :
+   """ Class for doing binary input/output on hycom .a files """
    _huge = 2.0**100
    def __init__(self,idm,jdm,filename,action,mask=False,real4=True,endian="big") :
       self._idm = idm
@@ -71,7 +72,8 @@ class AFile(object) :
 
    def zaiowr_a(self,h,mask,record=None) :
       w=numpy.ones(self._n2drec)*self._spval
-      w[0:self._idm*self._jdm] = h.flatten('F') # Fortran order
+      #w[0:self._idm*self._jdm] = h.flatten('F') # Fortran order
+      w[0:self._idm*self._jdm] = h.flatten() 
 
       if record is not None :
          raise AFileError("Seeked writes not yet supported")
@@ -174,12 +176,15 @@ class BFile(object) :
 
 
    def writeitem(self,key,value) :
-      if type(value) == type(int) :
-         fmtstring ="%5d   %s\n"%(value,key)
+      print type(value)
+      print type(1) 
+      if type(value) == type(1) :
+         tmp ="%5d   '%-6s'\n"%(value,key)
       else :
          msg = "writeitem not implemented for this type: %s"%type(value)
          raise NotImplementedError,msg
-      self._fileb.write("%s\n"%(value,"'%-6s'"%key))
+
+      self._fileb.write(tmp)
 
    def readline(self) :
       return self._fileb.readline()
@@ -210,12 +215,12 @@ class ABFileRegionalGrid(BFile) :
 
       if action == "w" :
          # TODO: Test that idm, jdm and mapflg is set
-         super(BFile,self).__init__(basename+".b",action)
-         self._filea.__init__(self._idm,self._jdm,basename+".a",action,mask=mask,real4=real4,endian=endian)
+         super(ABFileRegionalGrid,self).__init__(basename+".b",action)
+         self._filea = AFile(self._idm,self._jdm,basename+".a",action,mask=mask,real4=real4,endian=endian)
          # Regional file .b header
-         self._fileb.write("idm",self._idm)
-         self._fileb.write("jdm",self._jdm)
-         self._fileb.write("mapflg",self._mapflg)
+         self.writeitem("idm",self._idm)
+         self.writeitem("jdm",self._jdm)
+         self.writeitem("mapflg",self._mapflg)
       else :
          super(ABFileRegionalGrid,self).__init__(basename+".b",action)
          self._read_header()
@@ -251,10 +256,7 @@ class ABFileRegionalGrid(BFile) :
 
 
    def writefield(self,field,mask,fieldname) :
-      hmin,hmax = self.zaiowr_a(field,mask)
-      self.zaiowr_b(fieldname,hmin,hmax)
-
-   def zaiowr_b(self,fieldname,hmin,hmax) :
+      hmin,hmax = self._filea.zaiowr_a(field,mask)
       self._fileb.write("%4s:  min,max =%16.5f%16.5f\n"%(fieldname,hmin,hmax))
 
 
@@ -347,14 +349,6 @@ class ABFileArchv(BFile) :
       return w
 
 
-   def readrecord(self,record) :
-      """ Read single record from archive file"""
-      w = self._filea.zaiord_a(1,record)
-      print self._fields[record]
-      print w.min(),w.max()
-      return w
-
-
 
 
    @property
@@ -391,7 +385,7 @@ def write_regional_grid(grid) :
    vlon,vlat=grid.vgrid()
    qlon,qlat=grid.qgrid()
 
-   regf = AFile(grid.Nx,grid.Ny,"regional.grid","w",endian="native")
+   regf = ABFileRegionalGrid("regional.grid","w",idm=grid.Nx,jdm=grid.Ny,mapflg=-1)
    regf.writefield(plon,plon,"plon")
    regf.writefield(plat,plat,"plat")
    regf.writefield(qlon,qlon,"qlon")
@@ -422,8 +416,8 @@ def write_regional_grid(grid) :
 
 
 def write_newpos(grid) :
-   logging.debug("Endianness set to %s",endian)
-   logging.debug("Byteswapping is   %s"%str(swap_endian))
+   #logging.debug("Endianness set to %s",endian)
+   #logging.debug("Byteswapping is   %s"%str(swap_endian))
 
    # Number of records
    plon,plat=grid.pgrid()
@@ -433,8 +427,8 @@ def write_newpos(grid) :
    # Write to file, handle endianness ?
    plon = plon.astype(numpy.float64)
    plat = plat.astype(numpy.float64)
-   plon_binpack=struct.pack("=%dd"%plon.size,*plon[:])
-   plat_binpack=struct.pack("=%dd"%plat.size,*plat[:])
+   plon_binpack=struct.pack("=%dd"%plon.size,*plon.flatten()[:])
+   plat_binpack=struct.pack("=%dd"%plat.size,*plat.flatten()[:])
    nrec_binpack=struct.pack("=i",plon.size)
 
    # Fortran sequential unformatted access requires number of elements as first and last 4 bytes...
