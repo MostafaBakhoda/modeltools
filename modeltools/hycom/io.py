@@ -65,7 +65,7 @@ class AFile(object) :
 
    def _zaiopf(self) :
       # Open .a and .b file
-      self._filea = open(self._filename+".a",self._action+"b")
+      self._filea = open(self._filename,self._action+"b")
 
 
 
@@ -148,7 +148,7 @@ class AFile(object) :
 class BFile(object) :
 
    def __init__(self,filename,action) :
-      self._filename=filename+".b"
+      self._filename=filename
       self._action=action
       self._fileb = open(self._filename,self._action)
 
@@ -158,54 +158,149 @@ class BFile(object) :
    def scanitem(self,item=None,conversion=None) :
       line = self._fileb.readline().strip()
       if item is not None :
-         print "^(.*)'(%-6s)'[ ]*="%item,line
-         m=re.match("^(.*)'(%-6s)'[ ]*="%item,line)
+         pattern="^(.*)'(%-6s)'[ =]*"%item
+         m=re.match(pattern,line)
+         print "pattern : ",pattern
+         print "line    : ",line
       else :
-         m=re.match("^(.*)'(.*)'[ ]*=",line)
+         m=re.match("^(.*)'(.*)'[ =]*",line)
+      print "match:",m
       if m :
          if conversion :
             value = conversion(m.group(1))
          return m.group(2),value
       else :
          return None,None
+
+
+   def writeitem(self,key,value) :
+      if type(value) == type(int) :
+         fmtstring ="%5d   %s\n"%(value,key)
+      else :
+         msg = "writeitem not implemented for this type: %s"%type(value)
+         raise NotImplementedError,msg
+      self._fileb.write("%s\n"%(value,"'%-6s'"%key))
+
    def readline(self) :
       return self._fileb.readline()
 
 
+   def readrecord(self,record) :
+      """ Read single record from archive file"""
+      w = self._filea.zaiord_a(1,record)
+      return w
+
+   @property
+   def fieldnames(self) :
+      return set([elem["field"] for elem in self._fields.values()])
+
 
 
 class ABFileRegionalGrid(BFile) :
-   def __init__(self,idm,jdm,filename,action,mask=False,real4=True,endian="native",mapflg=-1) :
-      super(BFile,self).__init__(filename,action)
-      self._filea.__init__(idm,jdm,filename,action,mask=mask,real4=real4,endian=endian)
+   fieldkeys=["field","min","max"]
+   def __init__(self,basename,action,mask=False,real4=True,endian="big",mapflg=-1,idm=None,jdm=None) :
 
-      if action == "r" :
+      self._action  = action  
+      self._mask    = mask
+      self._real4   = real4
+      self._endian  = endian
+      self._mapflg  = mapflg
+      self._idm     = idm
+      self._jdm     = jdm
+
+      if action == "w" :
+         # TODO: Test that idm, jdm and mapflg is set
+         super(BFile,self).__init__(basename+".b",action)
+         self._filea.__init__(self._idm,self._jdm,basename+".a",action,mask=mask,real4=real4,endian=endian)
          # Regional file .b header
-         self._fileb.write("%5d    %s\n"%(self._idm,"'idm   '"))
-         self._fileb.write("%5d    %s\n"%(self._idm,"'jdm   '"))
-         self._fileb.write("%5d    %s\n"%(mapflg,"'mapflg'"))
+         self._fileb.write("idm",self._idm)
+         self._fileb.write("jdm",self._jdm)
+         self._fileb.write("mapflg",self._mapflg)
+      else :
+         super(ABFileRegionalGrid,self).__init__(basename+".b",action)
+         self._read_header()
+         self._read_field_info()
+         self._filea = AFile(self._idm,self._jdm,basename+".a",action,mask=mask,real4=real4,endian=endian)
+
+   def _read_header(self) :
+      item,self._idm    = self.scanitem(item="idm",conversion=int)
+      item,self._jdm    = self.scanitem(item="jdm",conversion=int)
+      item,self._mapflg = self.scanitem(item="mapflg",conversion=int)
+
+   def _read_field_info(self) :
+      # Get list of fields from .b file
+      #plon:  min,max =      -179.99806       179.99998
+      #plat:  min,max =       -15.79576        89.98227
+      #...
+      self._fields={}
+      line=self.readline().strip()
+      i=0
+      while line :
+         fieldname = line[0:4]
+         elems = re.split("[ =]+",line)
+         elems=[fieldname] + elems[2:]
+
+         self._fields[i] = dict(zip(self.fieldkeys,[el.strip() for el in elems]))
+         for k in self.fieldkeys :
+            if k in ["min","max","dens","day"] :
+               self._fields[i][k] = float(self._fields[i][k])
+            elif k in ["k","step"] :
+               self._fields[i][k] = int(self._fields[i][k])
+         i+=1
+         line=self.readline().strip()
+
 
    def writefield(self,field,mask,fieldname) :
       hmin,hmax = self.zaiowr_a(field,mask)
       self.zaiowr_b(fieldname,hmin,hmax)
 
    def zaiowr_b(self,fieldname,hmin,hmax) :
-      self.write("%4s:  min,max =%16.5f%16.5f\n"%(fieldname,hmin,hmax))
+      self._fileb.write("%4s:  min,max =%16.5f%16.5f\n"%(fieldname,hmin,hmax))
+
+
+   def readfield(self,fieldname) :
+      """ Read field corresponding to fieldname and level from archive file"""
+      record = None
+      for i,d in self._fields.items() :
+         if d["field"] == fieldname :
+            record=i
+      if record  is not None :
+         w = self.readrecord(record) 
+      else :
+         w = None
+      return w
 
 
 
 class ABFileArchv(BFile) :
    fieldkeys=["field","step","day","k","dens","min","max"]
-   def __init__(self,filename,mask=False,real4=True,endian="big") :
-      super(ABFileArchv,self).__init__(filename,"r")
-      self.readheader() # Sets self._idm, self._jdm
-      self._filea = AFile(self._idm,self._jdm,filename,"r",mask=mask,real4=real4,endian=endian)
+   def __init__(self,basename,action,mask=False,real4=True,endian="big",
+         iversn=None,iexpt=None,yrflag=None,idm=None,jdm=None) :
 
-   #def set_metadata(self,idm,jdm,
+      self._action  = action  
+      self._mask    = mask
+      self._real4   = real4
+      self._endian  = endian
+      self._iversn  = iversn
+      self._iexpt   = iexpt
+      self._yrflag  = yrflag
+      self._idm     = idm
+      self._jdm     = jdm
+
+      if self._action == "r" :
+         super(ABFileArchv,self).__init__(basename+".b","r")
+         self._read_header() # Sets internal metadata. Overrides those on input
+         self._read_field_info()
+      elif self._action == "w" :
+         # Need to test if idm, jdm, etc is set at this stage
+         raise NotImplementedError,"ABFileArchv writing not implemented"
+         super(ABFileArchv,self).__init__(basename+".b",self._action)
+
+      self._filea = AFile(self._idm,self._jdm,basename+".a",self._action,mask=self._mask,real4=self._real4,endian=self._endian)
 
 
 
-   def readheader(self) :
+   def _read_header(self) :
       self._header=[]
       self._header.append(self.readline())
       self._header.append(self.readline())
@@ -218,6 +313,7 @@ class ABFileArchv(BFile) :
       item,self._idm    = self.scanitem(item="idm",conversion=int)
       item,self._jdm    = self.scanitem(item="jdm",conversion=int)
 
+   def _read_field_info(self) :
       # Get list of fields from .b file
       #field       time step  model day  k  dens        min              max
       #montg1   =      67392    351.000  1 25.000   0.0000000E+00   0.0000000E+00
@@ -243,7 +339,6 @@ class ABFileArchv(BFile) :
       record = None
       for i,d in self._fields.items() :
          if d["field"] == fieldname and level == d["k"] :
-            print d["field"]
             record=i
       if record  is not None :
          w = self.readrecord(record) 
@@ -254,12 +349,12 @@ class ABFileArchv(BFile) :
 
    def readrecord(self,record) :
       """ Read single record from archive file"""
-      return self._filea.zaiord_a(1,record)
+      w = self._filea.zaiord_a(1,record)
+      print self._fields[record]
+      print w.min(),w.max()
+      return w
 
 
-   @property
-   def fieldnames(self) :
-      return set([elem["field"] for elem in self._fields.values()])
 
 
    @property
@@ -296,30 +391,29 @@ def write_regional_grid(grid) :
    vlon,vlat=grid.vgrid()
    qlon,qlat=grid.qgrid()
 
-
    regf = AFile(grid.Nx,grid.Ny,"regional.grid","w",endian="native")
-   regf.zaiowr(plon,plon,"plon")
-   regf.zaiowr(plat,plat,"plat")
-   regf.zaiowr(qlon,qlon,"qlon")
-   regf.zaiowr(qlat,qlat,"qlat")
-   regf.zaiowr(ulon,ulon,"ulon")
-   regf.zaiowr(ulat,ulat,"ulat")
-   regf.zaiowr(vlon,vlon,"vlon")
-   regf.zaiowr(vlat,vlat,"vlat")
+   regf.writefield(plon,plon,"plon")
+   regf.writefield(plat,plat,"plat")
+   regf.writefield(qlon,qlon,"qlon")
+   regf.writefield(qlat,qlat,"qlat")
+   regf.writefield(ulon,ulon,"ulon")
+   regf.writefield(ulat,ulat,"ulat")
+   regf.writefield(vlon,vlon,"vlon")
+   regf.writefield(vlat,vlat,"vlat")
 
-   regf.zaiowr(grid.p_azimuth(),vlat,"pang")
+   regf.writefield(grid.p_azimuth(),vlat,"pang")
 
-   regf.zaiowr(grid.scpx(),plon,"scpx")
-   regf.zaiowr(grid.scpy(),plon,"scpy")
-   regf.zaiowr(grid.scqx(),plon,"scqx")
-   regf.zaiowr(grid.scqy(),plon,"scqy")
-   regf.zaiowr(grid.scux(),plon,"scux")
-   regf.zaiowr(grid.scuy(),plon,"scuy")
-   regf.zaiowr(grid.scvx(),plon,"scvx")
-   regf.zaiowr(grid.scvy(),plon,"scvy")
+   regf.writefield(grid.scpx(),plon,"scpx")
+   regf.writefield(grid.scpy(),plon,"scpy")
+   regf.writefield(grid.scqx(),plon,"scqx")
+   regf.writefield(grid.scqy(),plon,"scqy")
+   regf.writefield(grid.scux(),plon,"scux")
+   regf.writefield(grid.scuy(),plon,"scuy")
+   regf.writefield(grid.scvx(),plon,"scvx")
+   regf.writefield(grid.scvy(),plon,"scvy")
 
-   regf.zaiowr(grid.corio(),plon,"cori")
-   regf.zaiowr(grid.aspect_ratio(),plon,"pasp")
+   regf.writefield(grid.corio(),plon,"cori")
+   regf.writefield(grid.aspect_ratio(),plon,"pasp")
 
    #print regf.n2drec * 19 * 4
 
