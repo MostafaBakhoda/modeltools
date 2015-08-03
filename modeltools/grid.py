@@ -311,7 +311,7 @@ def fwd_azimuth(lon1,lat1,lon2,lat2) :
    
 
 
-def plotgrid(lon,lat,width=3000000,height=3000000,fld) :
+def plotgrid(lon,lat,width=3000000,height=3000000) :
    import matplotlib
    from matplotlib.figure import Figure
    from matplotlib.backends.backend_agg import FigureCanvasAgg
@@ -321,7 +321,7 @@ def plotgrid(lon,lat,width=3000000,height=3000000,fld) :
    #ax     = figure.add_subplot(111)
    #canvas = FigureCanvasAgg(figure)
 
-   figure = matplotlib.pyplot.figure()
+   figure = matplotlib.pyplot.figure(figsize=(8,8))
    ax=figure.add_subplot(111)
 
    #Pick center longitude
@@ -336,8 +336,10 @@ def plotgrid(lon,lat,width=3000000,height=3000000,fld) :
    # Pick a suitable set of grid lines
    stepx,stepy=[elem/10 for elem in lon.shape]
 
-   x=x[::stepx,::stepy]
-   y=y[::stepx,::stepy]
+   x2=x[::stepx,::stepy]
+   y2=y[::stepx,::stepy]
+   x2=numpy.concatenate((x2,x[-1,::stepy].T),axis=0)
+   y2=numpy.concatenate((y2,y[::stepx,-1]))
 
    m.drawcoastlines()
    m.drawmapboundary() # draw a line around the map region
@@ -348,10 +350,10 @@ def plotgrid(lon,lat,width=3000000,height=3000000,fld) :
    cmap=matplotlib.colors.ListedColormap([col,col])
    #m.pcolormesh(x,y,v,ax=ax,edgecolor="k",cmap=cmap)
    m.pcolormesh(x,y,v,ax=ax,edgecolor="none",cmap=cmap)
-   for j in range(y.shape[1]) :
-      m.plot(x[:,j],y[:,j],color="b",lw=2)
-   for i in range(y.shape[0]) :
-      m.plot(x[i,:],y[i,:],color="r",lw=2)
+   for j in range(y2.shape[1]) :
+      m.plot(x2[:,j],y2[:,j],color="b",lw=2)
+   for i in range(y2.shape[0]) :
+      m.plot(x2[i,:],y2[i,:],color="r",lw=2)
    ax.set_title("Every %d in x(blue) and every %d in y(red) shown"%(stepy,stepx))
 
    return figure
