@@ -6,6 +6,9 @@ logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
 
 
+default_threshold=-5.
+
+
 class GEBCO2014(object) :
 
    def __init__(self,filename="/work/shared/nersc/msc/ModelInput/bathymetry/GEBCO_2014/GEBCO_2014_2D.nc") :
@@ -90,7 +93,7 @@ class GEBCO2014(object) :
       return w
 
 
-def remove_one_neighbour_cells(inv,threshold=0.) :
+def remove_one_neighbour_cells(inv,threshold=default_threshold) :
    v = numpy.copy(inv) 
    v[-1,:] = threshold
    v[1,:] = threshold
@@ -113,7 +116,7 @@ def remove_one_neighbour_cells(inv,threshold=0.) :
          v[1:-1,1:-1][I] = threshold
    return v
 
-def remove_islets(inv,threshold=0.) :
+def remove_islets(inv,threshold=default_threshold) :
    v = numpy.copy(inv) 
    v[-1,:] = threshold
    v[1,:] = threshold
@@ -143,7 +146,7 @@ def remove_islets(inv,threshold=0.) :
    return v
 
 
-def remove_isolated_basins(lon,lat,inv,lon0,lat0,threshold=0.) :
+def remove_isolated_basins(lon,lat,inv,lon0,lat0,threshold=default_threshold) :
     import scipy.ndimage.measurements
 
     mask = inv < threshold

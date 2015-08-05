@@ -80,11 +80,10 @@ class AFile(object) :
 
       # Calc min and mask
       if self._mask :
-         tmp = mask>0
-         I=numpy.where(tmp)
-         hmax=h(I).max()
-         hmin=h(I).min()
-         J=numpy.where(~tmp)
+         I=numpy.where(~mask)
+         hmax=h[I].max()
+         hmin=h[I].min()
+         J=numpy.where(mask.flatten())
          w[J] = self._spval
       else :
          hmax=h.max()
@@ -96,6 +95,8 @@ class AFile(object) :
          struct_fmt="d"
       binpack=struct.pack("%s%d%s"%(self._endian_structfmt,w.size,struct_fmt),*w[:])
       self._filea.write(binpack)
+      #print w[0:self._idm*self._jdm].min(),w[0:self._idm*self._jdm].max()
+      #print hmin,hmax
       return hmin,hmax
 
 
@@ -114,6 +115,7 @@ class AFile(object) :
 
       w=w[0:self.idm*self.jdm]
       w.shape=(self.jdm,self.idm)
+      print w.min(),w.max()
 
       return w
 
@@ -176,8 +178,8 @@ class BFile(object) :
 
 
    def writeitem(self,key,value) :
-      print type(value)
-      print type(1) 
+      #print type(value)
+      #print type(1) 
       if type(value) == type(1) :
          tmp ="%5d   '%-6s'\n"%(value,key)
       else :
@@ -199,6 +201,81 @@ class BFile(object) :
    def fieldnames(self) :
       return set([elem["field"] for elem in self._fields.values()])
 
+class ABFileBathy(BFile) :
+   fieldkeys=["field","min","max"]
+   def __init__(self,basename,action,idm,jdm,mask=False,real4=True,endian="big") :
+
+      self._action  = action  
+      self._mask    = mask
+      self._real4   = real4
+      self._endian  = endian
+      self._idm     = idm
+      self._jdm     = jdm
+
+      if action == "w" :
+         super(ABFileBathy,self).__init__(basename+".b",action)
+         self._filea = AFile(self._idm,self._jdm,basename+".a",action,mask=mask,real4=real4,endian=endian)
+         self._fileb.write("Bathymetry prepared by python modeltools package\n")
+         self._fileb.write("\n")
+         self._fileb.write("\n")
+         self._fileb.write("\n")
+         self._fileb.write("\n")
+      else :
+         super(ABFileBathy,self).__init__(basename+".b",action)
+         self._read_header()
+         self._read_field_info()
+         self._filea = AFile(self._idm,self._jdm,basename+".a",action,mask=mask,real4=real4,endian=endian)
+
+
+   def _read_header(self) :
+      self._header=[]
+      self._header.append(self.readline())
+      self._header.append(self.readline())
+      self._header.append(self.readline())
+      self._header.append(self.readline())
+      self._header.append(self.readline())
+
+   def _read_field_info(self) :
+      # Get list of fields from .b file
+      #plon:  min,max =      -179.99806       179.99998
+      #plat:  min,max =       -15.79576        89.98227
+      #...
+      self._fields={}
+      line=self.readline().strip()
+      i=0
+      while line :
+         m = re.match("^min,max[ ]+(.*)[ ]*=(.*)",line)
+         if m :
+            self._fields[i] = {}
+            self._fields[i]["field"] = m.group(1).strip()
+            elem = [elem.strip() for elem in m.group(2).split() if elem.strip()]
+            self._fields[i]["min"] = float(elem[0])
+            self._fields[i]["max"] = float(elem[1])
+         i+=1
+         line=self.readline().strip()
+
+
+   def writefield(self,field,mask) :
+      hmin,hmax = self._filea.zaiowr_a(field,mask)
+      self._fileb.write("min,max %s =%16.5f%16.5f\n"%("depth",hmin,hmax))
+
+
+   def readfield(self,fieldname) :
+      """ Read field corresponding to fieldname and level from archive file"""
+      record = None
+      for i,d in self._fields.items() :
+         if d["field"] == fieldname :
+            record=i
+      if record  is not None :
+         w = self.readrecord(record) 
+      else :
+         w = None
+      return w
+
+
+   def close (self):
+      self._filea.close()
+      self._fileb.close()
 
 
 class ABFileRegionalGrid(BFile) :
@@ -271,10 +348,6 @@ class ABFileRegionalGrid(BFile) :
       else :
          w = None
       return w
-
-   def close (self):
-      self._filea.close()
-      self._fileb.close()
 
 
 
@@ -365,22 +438,14 @@ class ABFileArchv(BFile) :
 
          
 
-
-
-#      self._fileb.write("%5d    %s\n"%(self._idm,"'idm   '"))
-#      self._fileb.write("%5d    %s\n"%(self._idm,"'jdm   '"))
-#      self._fileb.write("%5d    %s\n"%(mapflg,"'mapflg'"))
-#   22    'iversn' = hycom version number x10
-#   10    'iexpt ' = experiment number x10
-#    1    'yrflag' = days in year flag
-#  800    'idm   ' = longitudinal array size
-#  880    'jdm   ' = latitudinal  array size
-#
-##   def zaiowr(self,field,mask,fieldname) :
-##      hmin,hmax = self.zaiowr_a(field,mask)
-##      self.zaiowr_b(fieldname,hmin,hmax)
-#      
-#   open
+def write_bathymetry(exp,version,d,threshold) :
+   regf = ABFileBathy("depth_%s_%02d"%(exp,version),"w",idm=d.shape[0],jdm=d.shape[1],mask=True)
+   d=numpy.copy(d)
+   mask=d <= threshold
+   print "in write_bathymetry",numpy.count_nonzero(mask),mask.size
+   regf.writefield(d,mask)
+   regf.close()
+   
 
 
 def write_regional_grid(grid) :
@@ -412,9 +477,7 @@ def write_regional_grid(grid) :
 
    regf.writefield(grid.corio(),plon,"cori")
    regf.writefield(grid.aspect_ratio(),plon,"pasp")
-
    #print regf.n2drec * 19 * 4
-
    regf.close()
 
 
