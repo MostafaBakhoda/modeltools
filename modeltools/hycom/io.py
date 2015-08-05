@@ -272,6 +272,10 @@ class ABFileRegionalGrid(BFile) :
          w = None
       return w
 
+   def close (self):
+      self._filea.close()
+      self._fileb.close()
+
 
 
 class ABFileArchv(BFile) :

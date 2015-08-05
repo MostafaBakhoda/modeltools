@@ -84,6 +84,13 @@ class Proj4Grid(Grid) :
 
    
    @property
+   def dx(self) : return self._dx
+
+   @property
+   def dy(self) : return self._dy
+   
+   
+   @property
    def width(self) : return self._Nx*self._dx
 
    @property
@@ -334,12 +341,20 @@ def plotgrid(lon,lat,width=3000000,height=3000000) :
    x,y = m(lon,lat)
 
    # Pick a suitable set of grid lines
-   stepx,stepy=[elem/10 for elem in lon.shape]
+   nlines=10
+   stepx,stepy=[elem/nlines for elem in lon.shape]
+   x2=numpy.zeros((nlines+1,nlines+1))
+   y2=numpy.zeros((nlines+1,nlines+1))
 
-   x2=x[::stepx,::stepy]
-   y2=y[::stepx,::stepy]
-   x2=numpy.concatenate((x2,x[-1,::stepy].T),axis=0)
-   y2=numpy.concatenate((y2,y[::stepx,-1]))
+   print x2.shape,x[::stepx,::stepy].shape
+   x2[:-1,:-1]=x[::stepx,::stepy]
+   x2[-1,:-1]=x[-1,::stepy]
+   x2[:-1,-1]=x[::stepx,-1]
+   x2[-1,-1]=x[-1,-1]
+   y2[:-1,:-1]=y[::stepx,::stepy]
+   y2[:-1,-1]=y[::stepx,-1]
+   y2[-1,:-1]=y[-1,::stepy]
+   y2[-1,-1]=y[-1,-1]
 
    m.drawcoastlines()
    m.drawmapboundary() # draw a line around the map region
