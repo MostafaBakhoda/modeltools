@@ -179,5 +179,43 @@ def remove_isolated_basins(lon,lat,inv,lon0,lat0,threshold=default_threshold) :
     return outv
 
 
+def shapiro_filter(w,threshold=default_threshold,S=0.25) :
+   myw = numpy.copy(w)
+   # TODO: Account for periodic grids
+
+   # x - direction
+   wm1=numpy.copy(myw[1:-1,1:-3])
+   w0 =numpy.copy(myw[1:-1,2:-2])
+   wp1=numpy.copy(myw[1:-1,3:-1])
+   fwm1=numpy.where(wm1<threshold,1,0)
+   fw  =numpy.where(w0 <threshold,1,0)
+   fwp1=numpy.where(wp1<threshold,1,0)
+   I = numpy.where(fwm1+fw+fwp1==3)
+   if I[0].size > 0 :
+      w0[I] = w0[I] + 0.5*S * (wm1[I]+wp1[I]-2*w0[I])
+   myw[1:-1,2:-2] = w0
+
+
+   # x - direction
+   wm1=numpy.copy(myw[1:-3,1:-1])
+   w0 =numpy.copy(myw[2:-2,1:-1])
+   wp1=numpy.copy(myw[3:-1,1:-1])
+   fwm1=numpy.where(wm1<threshold,1,0)
+   fw  =numpy.where(w0 <threshold,1,0)
+   fwp1=numpy.where(wp1<threshold,1,0)
+   I = numpy.where(fwm1+fw+fwp1==3)
+   if I[0].size > 0 :
+      w0[I] = w0[I] + 0.5*S * (wm1[I]+wp1[I]-2*w0[I])
+   myw[2:-2,1:-1] = w0
+
+   return myw
+
+
+
+
+   
+
+
+
     
    
