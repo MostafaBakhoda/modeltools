@@ -332,9 +332,10 @@ class ABFileRegionalGrid(BFile) :
          line=self.readline().strip()
 
 
-   def writefield(self,field,mask,fieldname) :
+   def writefield(self,field,mask,fieldname,fmt="%16.8") :
       hmin,hmax = self._filea.zaiowr_a(field,mask)
-      self._fileb.write("%4s:  min,max =%16.5f%16.5f\n"%(fieldname,hmin,hmax))
+      fmtstr="%%4s:  min,max =%s %s\n"%(fmt,fmt)
+      self._fileb.write(fmtstring%(fieldname,hmin,hmax))
 
 
    def readfield(self,fieldname) :
