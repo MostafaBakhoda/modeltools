@@ -110,6 +110,10 @@ class AFile(object) :
       else :
          raw = self._filea.read(self.n2drec*8)
          fmt =  "%s%dd"%(self._endian_structfmt,self.n2drec)
+
+      #print raw
+      #print self.n2drec*4
+      #print len(raw)
       w =  numpy.array(struct.unpack(fmt,raw))
       w=numpy.ma.masked_where(w>self._huge*.5,w)
 
@@ -200,6 +204,11 @@ class BFile(object) :
    @property
    def fieldnames(self) :
       return set([elem["field"] for elem in self._fields.values()])
+
+   def writefield(self,field,mask,fieldname,fmt="%16.8g") :
+      hmin,hmax = self._filea.zaiowr_a(field,mask)
+      fmtstr="%%4s:  min,max =%s %s\n"%(fmt,fmt)
+      self._fileb.write(fmtstr%(fieldname,hmin,hmax))
 
 class ABFileBathy(BFile) :
    fieldkeys=["field","min","max"]
@@ -332,10 +341,10 @@ class ABFileRegionalGrid(BFile) :
          line=self.readline().strip()
 
 
-   def writefield(self,field,mask,fieldname,fmt="%16.8") :
-      hmin,hmax = self._filea.zaiowr_a(field,mask)
-      fmtstr="%%4s:  min,max =%s %s\n"%(fmt,fmt)
-      self._fileb.write(fmtstring%(fieldname,hmin,hmax))
+   #def writefield(self,field,mask,fieldname,fmt="%16.8g") :
+   #   hmin,hmax = self._filea.zaiowr_a(field,mask)
+   #   fmtstr="%%4s:  min,max =%s %s\n"%(fmt,fmt)
+   #   self._fileb.write(fmtstr%(fieldname,hmin,hmax))
 
 
    def readfield(self,fieldname) :
@@ -449,13 +458,13 @@ def write_bathymetry(exp,version,d,threshold) :
    
 
 
-def write_regional_grid(grid) :
+def write_regional_grid(grid,endian="big") :
    plon,plat=grid.pgrid()
    ulon,ulat=grid.ugrid()
    vlon,vlat=grid.vgrid()
    qlon,qlat=grid.qgrid()
 
-   regf = ABFileRegionalGrid("regional.grid","w",idm=grid.Nx,jdm=grid.Ny,mapflg=-1)
+   regf = ABFileRegionalGrid("regional.grid","w",idm=grid.Nx,jdm=grid.Ny,mapflg=-1,endian=endian)
    regf.writefield(plon,plon,"plon")
    regf.writefield(plat,plat,"plat")
    regf.writefield(qlon,qlon,"qlon")
