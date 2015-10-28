@@ -35,15 +35,22 @@ class Proj4Grid(Grid) :
       self._ll_lat=ll_lat
 
       # Calculate 0,0 (LL=Lower Left) in projection coordinates. 
-      self._ll_x,self._ll_y = self._proj(ll_lon,ll_lat)
+      if self._proj.is_latlong() :
+         self._ll_x,self._ll_y = ll_lon,ll_lat
+      else :
+         self._ll_x,self._ll_y = self._proj(ll_lon,ll_lat)
 
       # Create grid. This is the P-grid. Note increase of stencil - used to calculate grid sizes
       self._x=self._ll_x + numpy.linspace(-dx,dx*(Nx),Nx+2)
       self._y=self._ll_y + numpy.linspace(-dy,dy*(Ny),Ny+2)
       self._X,self._Y = numpy.meshgrid(self._x,self._y)
-      #print self._X.shape,self._x.shape,self._y.shape
+      print self._X.shape,self._x.shape,self._y.shape
 
-      tmp= self._proj(self._X,self._Y,inverse=True)
+      if self._proj.is_latlong() :
+         tmp= self._X,self._Y
+         #print self._X
+      else :
+         tmp= self._proj(self._X,self._Y,inverse=True)
       logger.debug("Initialized P-grid using projection %s"%self._proj4string)
       logger.debug("Lower left corner lon/lat of grid: (%.3g,%.3g)" % (ll_lon,ll_lat))
       logger.debug("Grid spacing in projection coords: (%.3g,%.3g)" % (self._dx,self._dy))
@@ -74,13 +81,25 @@ class Proj4Grid(Grid) :
    def vgrid(self,extended=False) : return self._grid(0.,-0.5*self._dy,extended)
 
    def qgrid(self,extended=False) : return self._grid(-0.5*self._dx,-0.5*self._dy,extended)
+
+   def cice_ugrid(self,extended=False) :
+      # TODO: Check out why its like this ....
+      #return self._grid(+0.5*self._dx,+0.5*self._dy,extended)
+      return self._grid(-0.5*self._dx,-0.5*self._dy,extended)
       
       
    def _grid(self,deltax,deltay,extended=False) : 
       if extended :
-         return self._proj(self._X-deltax,self._Y-deltay,inverse=True)
+         tmp = (self._X+deltax,self._Y+deltay)
+         #return self._proj(self._X+deltax,self._Y+deltay,inverse=True)
       else :
-         return self._proj(self._X[1:-1,1:-1]-deltax,self._Y[1:-1,1:-1]-deltay,inverse=True)
+         #return self._proj(self._X[1:-1,1:-1]-deltax,self._Y[1:-1,1:-1]-deltay,inverse=True)
+         tmp = (self._X[1:-1,1:-1]-deltax,self._Y[1:-1,1:-1]-deltay)
+
+      if self._proj.is_latlong() :
+         return tmp
+      else :
+         return self._proj(*tmp,inverse=True)
 
    
    @property
@@ -91,10 +110,19 @@ class Proj4Grid(Grid) :
    
    
    @property
-   def width(self) : return self._Nx*self._dx
+   def width(self) : 
+      if self._proj.is_latlong() :
+         return self._Nx*self._dx*111000.
+      else :
+         return self._Nx*self._dx
 
    @property
-   def height(self) : return self._Ny*self._dy
+   def height(self) :
+      if self._proj.is_latlong() :
+         return self._Ny*self._dy*111000.
+      else :
+         return self._Ny*self._dy
+
 
    @property
    def Nx(self) : return self._Nx
@@ -112,15 +140,38 @@ class Proj4Grid(Grid) :
 # --- stencil:      u--p--*
 # ---               |  |  |
 # --- We have q   ->q--v--*
+# --- NB: Python uses reversed indexing rel fortran
 # --- ------------------------------------------------------------------
 
    def scuy(self) :
       qlon,qlat = self.qgrid(extended=True)
-      return actual_grid_spacing(qlon[1:-1,2:],qlat[1:-1,2:], qlon[1:-1,1:-1], qlat[1:-1,1:-1])
+      I   = numpy.s_[1:-1]
+      J   = numpy.s_[1:-1]
+      Jp1 = numpy.s_[2:]
+      return actual_grid_spacing(qlon[J,I],qlat[J,I], qlon[Jp1,I], qlat[Jp1,I])
+
+   def cice_hte(self) :
+      # length of easternmost grid cell wall
+      qlon,qlat = self.qgrid(extended=True)
+      Ip1  = numpy.s_[2:]
+      Jp1  = numpy.s_[2:]
+      J    = numpy.s_[1:-1]
+      return actual_grid_spacing(qlon[Jp1,Ip1],qlat[Jp1,Ip1], qlon[J,Ip1], qlat[J,Ip1])
 
    def scvx(self) :
       qlon,qlat = self.qgrid(extended=True)
-      return actual_grid_spacing(qlon[2:,1:-1],qlat[2:,1:-1], qlon[1:-1,1:-1],qlat[1:-1,1:-1])
+      I   = numpy.s_[1:-1]
+      J   = numpy.s_[1:-1]
+      Ip1 = numpy.s_[2:]
+      return actual_grid_spacing(qlon[J,I],qlat[J,I], qlon[J,Ip1],qlat[J,Ip1])
+
+   def cice_htn(self) :
+      # length of northernmost grid cell wall
+      qlon,qlat = self.qgrid(extended=True)
+      I   = numpy.s_[1:-1]
+      Ip1 = numpy.s_[2:]
+      Jp1 = numpy.s_[2:]
+      return actual_grid_spacing(qlon[Jp1,I],qlat[Jp1,I], qlon[Jp1,Ip1],qlat[Jp1,Ip1])
 
 # --- ------------------------------------------------------------------
 # --- Calc scvy and scux from plat, plon
@@ -129,15 +180,36 @@ class Proj4Grid(Grid) :
 # --- stencil:      u--p--*
 # ---               |  |  |
 # --- We have p   ->q--v--*
+# --- NB: Python uses reversed indexing rel fortran
 # --- ------------------------------------------------------------------
 
    def scvy(self) :
       plon,plat = self.pgrid(extended=True)
-      return actual_grid_spacing(plon[1:-1,1:-1],plat[1:-1,1:-1], plon[1:-1,:-2], plat[1:-1,:-2])
+      I  =numpy.s_[1:-1]
+      J  =numpy.s_[1:-1]
+      Jm1=numpy.s_[:-2]
+      return actual_grid_spacing(plon[J,I],plat[J,I], plon[Jm1,I], plat[Jm1,I])
+
+   def cice_huw(self) :
+      plon,plat = self.pgrid(extended=True)
+      I  =numpy.s_[1:-1]
+      Jp1=numpy.s_[2:]
+      J  =numpy.s_[1:-1]
+      return actual_grid_spacing(plon[J,I],plat[J,I], plon[Jp1,I], plat[Jp1,I])
 
    def scux(self) :
       plon,plat = self.pgrid(extended=True)
-      return actual_grid_spacing(plon[1:-1,1:-1],plat[1:-1,1:-1], plon[:-2,1:-1],plat[:-2,1:-1])
+      I  =numpy.s_[1:-1]
+      J  =numpy.s_[1:-1]
+      Im1=numpy.s_[:-2]
+      return actual_grid_spacing(plon[J,I],plat[J,I], plon[J,Im1],plat[J,Im1])
+
+   def cice_hus(self) :
+      plon,plat = self.pgrid(extended=True)
+      I  =numpy.s_[1:-1]
+      J  =numpy.s_[1:-1]
+      Ip1=numpy.s_[:-2]
+      return actual_grid_spacing(plon[J,I],plat[J,I], plon[J,Ip1],plat[J,Ip1])
 
 # --- ------------------------------------------------------------------
 # --- Calc scpx and scqy from ulat, ulon
@@ -150,11 +222,18 @@ class Proj4Grid(Grid) :
 
    def scpx(self) :
       ulon,ulat = self.ugrid(extended=True)
-      return actual_grid_spacing(ulon[1:-1,1:-1],ulat[1:-1,1:-1], ulon[2:,1:-1], ulat[2:,1:-1])
+      I  =numpy.s_[1:-1]
+      J  =numpy.s_[1:-1]
+      Ip1=numpy.s_[2:]
+      return actual_grid_spacing(ulon[J,I],ulat[J,I], ulon[J,Ip1], ulat[J,Ip1])
 
    def scqy(self) :
       ulon,ulat = self.ugrid(extended=True)
-      return actual_grid_spacing(ulon[1:-1,1:-1],ulat[1:-1,1:-1], ulon[1:-1,:-2],ulat[1:-1,:-2])
+      I  =numpy.s_[1:-1]
+      J  =numpy.s_[1:-1]
+      Jm1=numpy.s_[:-2]
+      return actual_grid_spacing(ulon[J,I],ulat[J,I], ulon[Jm1,I],ulat[Jm1,I])
+
 
 # --- ------------------------------------------------------------------
 # --- Calc scpy and scqx from vlat,vlon
@@ -167,16 +246,29 @@ class Proj4Grid(Grid) :
 
    def scpy(self) :
       vlon,vlat = self.vgrid(extended=True)
-      return actual_grid_spacing(vlon[1:-1,1:-1],vlat[1:-1,1:-1], vlon[1:-1,2:], vlat[1:-1,2:])
+      I  =numpy.s_[1:-1]
+      J  =numpy.s_[1:-1]
+      Jp1=numpy.s_[2:]
+      return actual_grid_spacing(vlon[J,I],vlat[J,I], vlon[Jp1,I], vlat[Jp1,I])
 
    def scqx(self) :
       vlon,vlat = self.vgrid(extended=True)
-      return actual_grid_spacing(vlon[1:-1,1:-1],vlat[1:-1,1:-1], vlon[1:-1,:-2],vlat[1:-1,:-2])
+      I  =numpy.s_[1:-1]
+      J  =numpy.s_[1:-1]
+      Im1=numpy.s_[:-2]
+      return actual_grid_spacing(vlon[J,I],vlat[J,I], vlon[J,Im1],vlat[J,Im1])
+
+
+# --- End of grid-related stuff
 
    def p_azimuth(self) :
       plon,plat = self.pgrid(extended=True)
+      print "1",fwd_azimuth( 0, 0,10,0)
+      print "2",fwd_azimuth( 0, 0,0,10)
+      #return fwd_azimuth( plon[1:-1,1:-1],plat[1:-1,1:-1], 
+      #                    plon[2:,1:-1]   ,plat[2:,1:-1])
       return fwd_azimuth( plon[1:-1,1:-1],plat[1:-1,1:-1], 
-                          plon[2:,1:-1]   ,plat[2:,1:-1])
+                          plon[1:-1,2:]   ,plat[1:-1,2:])
 
       
    def corio(self) :
@@ -304,6 +396,86 @@ class Proj4Grid(Grid) :
       pass
 
 
+   def save_to_scrip(self,filename,mask=None) :
+      import matplotlib
+      #import scipy.io.netcdf
+      import netCDF4
+      #nc = scipy.io.netcdf.netcdf_file("tst.nc","w")
+      nc = netCDF4.Dataset(filename,"w")
+      plon,plat=self.pgrid(extended=False)
+      qlon,qlat=self.qgrid(extended=True)
+
+      nc.createDimension("grid_size",plon.size)
+      nc.createDimension("grid_corners",4)
+      nc.createDimension("grid_rank",2)
+
+      nc.createVariable("grid_dims","i8",("grid_rank",))
+      nc.createVariable("grid_center_lon","d",("grid_size",))
+      nc.createVariable("grid_center_lat","d",("grid_size",))
+      nc.createVariable("grid_imask","i8",("grid_size",))
+      nc.createVariable("grid_corner_lon","d",("grid_size","grid_corners",))
+      nc.createVariable("grid_corner_lat","d",("grid_size","grid_corners",))
+
+
+
+      nc["grid_center_lon"].setncattr("units","degrees")
+      nc["grid_corner_lon"].setncattr("units","degrees")
+      nc["grid_center_lat"].setncattr("units","degrees")
+      nc["grid_corner_lat"].setncattr("units","degrees")
+
+      nc["grid_center_lon"][:]=plon.flatten()
+      nc["grid_center_lat"][:]=plat.flatten()
+
+      nc["grid_dims"][0]=plon.shape[1]
+      nc["grid_dims"][1]=plon.shape[0]
+
+
+
+      if mask is None :
+         nc["grid_imask"][:]=1
+      else :
+         nc["grid_imask"][:]=mask[:]
+
+
+      nc["grid_corner_lon"][:,0]=qlon[1:-1,1:-1].flatten()
+      nc["grid_corner_lon"][:,1]=qlon[1:-1,2:  ].flatten()
+      nc["grid_corner_lon"][:,2]=qlon[2:  ,2:  ].flatten()
+      nc["grid_corner_lon"][:,3]=qlon[2:  ,1:-1].flatten()
+
+      nc["grid_corner_lat"][:,0]=qlat[1:-1,1:-1].flatten()
+      nc["grid_corner_lat"][:,1]=qlat[1:-1,2:  ].flatten()
+      nc["grid_corner_lat"][:,2]=qlat[2:  ,2:  ].flatten()
+      nc["grid_corner_lat"][:,3]=qlat[2:  ,1:-1].flatten()
+
+
+      itest=0
+      print nc["grid_center_lon"][itest]
+      print nc["grid_corner_lon"][itest]
+      print nc["grid_center_lat"][itest]
+      print nc["grid_corner_lat"][itest]
+      figure = matplotlib.pyplot.figure(figsize=(8,8))
+      ax=figure.add_subplot(111)
+      ax.hold(True)
+      ax.set_xlim(numpy.amin(nc["grid_corner_lon"][itest,:])-.1,numpy.amax(nc["grid_corner_lon"][itest,:])+.1)
+      ax.set_ylim(numpy.amin(nc["grid_corner_lat"][itest,:])-.1,numpy.amax(nc["grid_corner_lat"][itest,:])+.1)
+      for i in range(4) :
+         x=nc["grid_corner_lon"][itest,i]
+         y=nc["grid_corner_lat"][itest,i]
+         dx=nc["grid_corner_lon"][itest,(i+1)%4]-nc["grid_corner_lon"][itest,i]
+         dy=nc["grid_corner_lat"][itest,(i+1)%4]-nc["grid_corner_lat"][itest,i]
+         ax.plot([x,x+dx],[y,y+dy],color=".5",lw=3)
+         ax.plot(x,y,"*",label="corner " + str(i),markersize=20)
+      ax.plot(nc["grid_center_lon"][itest],nc["grid_center_lat"][itest],"s",label="center")
+      ax.legend()
+
+
+      nc.close()
+
+
+
+
+
+
 
 def actual_grid_spacing(lon1,lat1,lon2,lat2) : 
    geod=pyproj.Geod(ellps="sphere")
@@ -324,6 +496,8 @@ def plotgrid(lon,lat,width=3000000,height=3000000) :
    from matplotlib.backends.backend_agg import FigureCanvasAgg
    from mpl_toolkits.basemap import Basemap
 
+   print "testlon, testlat:",lon[1,1],lat[1,1]
+
    #figure = Figure()
    #ax     = figure.add_subplot(111)
    #canvas = FigureCanvasAgg(figure)
@@ -337,6 +511,8 @@ def plotgrid(lon,lat,width=3000000,height=3000000) :
    clat=lat[ix,iy]
 
    # Probably a way of estimating the width here...
+   print width,height
+   print clon,clat
    m = Basemap(projection='stere',lon_0=clon,lat_0=clat,resolution='l',width=width,height=height,ax=ax)
    x,y = m(lon,lat)
 
@@ -372,6 +548,5 @@ def plotgrid(lon,lat,width=3000000,height=3000000) :
    ax.set_title("Every %d in x(blue) and every %d in y(red) shown"%(stepy,stepx))
 
    return figure
-
 
 
