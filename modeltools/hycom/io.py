@@ -21,6 +21,9 @@ class AFileError(Exception) :
    pass
 
 
+class BFileError(Exception) :
+   pass
+
 
 class AFile(object) :
    """ Class for doing binary input/output on hycom .a files """
@@ -154,6 +157,7 @@ class AFile(object) :
 
 
 class BFile(object) :
+   """ Class for doing binary input/output on hycom .b files """
 
    def __init__(self,filename,action) :
       self._filename=filename
@@ -182,8 +186,6 @@ class BFile(object) :
 
 
    def writeitem(self,key,value) :
-      #print type(value)
-      #print type(1) 
       if type(value) == type(1) :
          tmp ="%5d   '%-6s'\n"%(value,key)
       else :
@@ -209,6 +211,8 @@ class BFile(object) :
       hmin,hmax = self._filea.zaiowr_a(field,mask)
       fmtstr="%%4s:  min,max =%s %s\n"%(fmt,fmt)
       self._fileb.write(fmtstr%(fieldname,hmin,hmax))
+
+
 
 class ABFileBathy(BFile) :
    fieldkeys=["field","min","max"]
@@ -443,6 +447,94 @@ class ABFileArchv(BFile) :
       return set([elem["k"] for elem in self._fields.values()])
       
       
+class ABFileForcing(BFile) :
+   fieldkeys=["field","min","max"]
+   def __init__(self,basename,action,mask=False,real4=True,endian="big", idm=None,jdm=None,
+                cline1="",cline2=""):
+
+      self._action  = action  
+      self._mask    = mask
+      self._real4   = real4
+      self._endian  = endian
+      self._idm     = idm
+      self._jdm     = jdm
+      self._cline1  = cline1
+      self._cline2  = cline2
+      self._basename= basename
+
+      if action == "w" :
+         super(ABFileForcing,self).__init__(basename+".b",action)
+         self._filea = AFile(self._idm,self._jdm,basename+".a",action,mask=mask,real4=real4,endian=endian)
+         self._fileb.write(cline1.strip()+"\n")
+         self._fileb.write(cline2.strip()+"\n")
+         self._fileb.write("\n")
+         self._fileb.write("\n")
+         self._fileb.write("i/jdm =%5d %5d\n"%(self._idm,self._jdm))
+      else :
+         super(ABFileFileForcing,self).__init__(basename+".b",action)
+         self._read_header()
+         self._read_field_info()
+         self._filea = AFile(self._idm,self._jdm,basename+".a",action,mask=mask,real4=real4,endian=endian)
+
+
+   def _read_header(self) :
+      self._header=[]
+      self._header.append(self.readline())
+      self._header.append(self.readline())
+      self._header.append(self.readline())
+      self._header.append(self.readline())
+      self._header.append(self.readline())
+      self._cline1=self.header[0].trim()
+      self._cline2=self.header[1].trim()
+      m = re.match("i/jdm =([0-9]+)[ ]+([0-9]+)",self.header[4].trim())
+      if m :
+         self._idm = int(m.group(1))
+         self._jdm = int(m.group(2))
+      else :
+         raise  AFileError, "Unable to parse idm, jdm from header. File=%s, Parseable string=%s"%(
+            self._filename, self.header[4].trim())
+
+   def _read_field_info(self) :
+      # Get list of fields from .b file
+      #plon:  min,max =      -179.99806       179.99998
+      #plat:  min,max =       -15.79576        89.98227
+      #...
+      self._fields={}
+      line=self.readline().strip()
+      i=0
+      while line :
+         m = re.match("^min,max[ ]+(.*)[ ]*=(.*)",line)
+         if m :
+            self._fields[i] = {}
+            self._fields[i]["field"] = m.group(1).strip()
+            elem = [elem.strip() for elem in m.group(2).split() if elem.strip()]
+            self._fields[i]["min"] = float(elem[0])
+            self._fields[i]["max"] = float(elem[1])
+         i+=1
+         line=self.readline().strip()
+
+
+   def writefield(self,field,mask,fieldname,dtime1,rdtime) :
+      hmin,hmax = self._filea.zaiowr_a(field,mask)
+      self._fileb.write("%s(synoptic):dtime1,range = %12.4f%12.4f,%14.6e%14.6e\n"%(fieldname,dtime1,rdtime,hmin,hmax))
+
+
+   def readfield(self,fieldname) :
+      """ Read field corresponding to fieldname and level from archive file"""
+      record = None
+      for i,d in self._fields.items() :
+         if d["field"] == fieldname :
+            record=i
+      if record  is not None :
+         w = self.readrecord(record) 
+      else :
+         w = None
+      return w
+
+
+   def close (self):
+      self._filea.close()
+      self._fileb.close()
 
 
 
