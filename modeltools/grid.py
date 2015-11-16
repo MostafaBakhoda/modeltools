@@ -4,9 +4,18 @@ import pyproj
 import numpy
 import logging
 import re 
-logger = logging.getLogger()
-logger.setLevel(logging.DEBUG)
 
+
+# Set up logger
+_loglevel=logging.DEBUG
+logger = logging.getLogger(__name__)
+logger.setLevel(_loglevel)
+formatter = logging.Formatter("%(asctime)s - %(name)10s - %(levelname)7s: %(message)s")
+ch = logging.StreamHandler()
+ch.setLevel(_loglevel)
+ch.setFormatter(formatter)
+logger.addHandler(ch)
+logger.propagate=False # Dont propagate to parent in hierarchy (determined by "." in __name__)
 
 class Grid(object) :
    pass
@@ -17,8 +26,6 @@ class ConformalGrid(Grid) :
 class Proj4Grid(Grid) :
 
    def __init__(self,proj4string,ll_lon,ll_lat,dx,dy,Nx,Ny) :
-
-      
 
 
       self._proj4string=proj4string
@@ -44,7 +51,7 @@ class Proj4Grid(Grid) :
       self._x=self._ll_x + numpy.linspace(-dx,dx*(Nx),Nx+2)
       self._y=self._ll_y + numpy.linspace(-dy,dy*(Ny),Ny+2)
       self._X,self._Y = numpy.meshgrid(self._x,self._y)
-      print self._X.shape,self._x.shape,self._y.shape
+      #print self._X.shape,self._x.shape,self._y.shape
 
       if self._proj.is_latlong() :
          tmp= self._X,self._Y
@@ -496,7 +503,7 @@ def plotgrid(lon,lat,width=3000000,height=3000000) :
    from matplotlib.backends.backend_agg import FigureCanvasAgg
    from mpl_toolkits.basemap import Basemap
 
-   print "testlon, testlat:",lon[1,1],lat[1,1]
+   #print "testlon, testlat:",lon[1,1],lat[1,1]
 
    #figure = Figure()
    #ax     = figure.add_subplot(111)
@@ -511,8 +518,8 @@ def plotgrid(lon,lat,width=3000000,height=3000000) :
    clat=lat[ix,iy]
 
    # Probably a way of estimating the width here...
-   print width,height
-   print clon,clat
+   #print width,height
+   #print clon,clat
    m = Basemap(projection='stere',lon_0=clon,lat_0=clat,resolution='l',width=width,height=height,ax=ax)
    x,y = m(lon,lat)
 
@@ -522,7 +529,7 @@ def plotgrid(lon,lat,width=3000000,height=3000000) :
    x2=numpy.zeros((nlines+1,nlines+1))
    y2=numpy.zeros((nlines+1,nlines+1))
 
-   print x2.shape,x[::stepx,::stepy].shape
+   #print x2.shape,x[::stepx,::stepy].shape
    x2[:-1,:-1]=x[::stepx,::stepy]
    x2[-1,:-1]=x[-1,::stepy]
    x2[:-1,-1]=x[::stepx,-1]
