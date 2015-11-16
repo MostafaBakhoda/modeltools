@@ -8,11 +8,28 @@ import datetime
 import cfunits
 import netcdftime
 import scipy
-import modeltools.tools.indata
+import modeltools.tools
+
+# Set up logger
+_loglevel=logging.DEBUG
+logger = logging.getLogger(__name__)
+logger.setLevel(_loglevel)
+formatter = logging.Formatter("%(asctime)s - %(name)10s - %(levelname)7s: %(message)s")
+ch = logging.StreamHandler()
+ch.setLevel(_loglevel)
+ch.setFormatter(formatter)
+logger.addHandler(ch)
+logger.propagate=False # TODO: :Not sure why this is needed...
+
+_stefanb=5.67e-8
+_s0=1365.                 # w/m^2  solar constant
+_absh2o=0.09              # ---    absorption of water and ozone
 
 _all_known_names = [
       "10u",
       "10v",
+      "taux",
+      "tauy",
       "2t",
       "2d",
       "msl",
@@ -20,7 +37,9 @@ _all_known_names = [
       "tcc",
       "tp",
       "ro",
-      "ssrd"]
+      "ssrd",
+      "tsrd"
+      ]
 
 # Units used by internal calculations
 _assumed_units = {
@@ -33,56 +52,20 @@ _assumed_units = {
       "tcc":"1",
       "tp":"m s**-1",
       "ro":"1",
-      "ssrd":"W m**2 s**-1"
+      "ssrd":"W m**-2 s**-1",
+      "tsrd":"W m**-2 s**-1",
+      "taux":"N m**-2",
+      "tauy":"N m**-2",
+      "sradtop":"W m**-2 s**-1",
+      "vapmix":"kg kg**-1"
       }
 
 class AtmosphericForcingError(Exception):
     """Base class for exceptions in this module."""
     pass
 
-class ForcingField(object) :
-   def __init__(self,filenametemplate,varname,unit,format) :
-      self._filenametemplate= filenametemplate
-      self._varname         = varname
-      self._unit            = unit
-      self._cfunit          = cfunits.Units(units=self._unit)
-      self._format          = format
-      self._fieldreader = modeltools.tools.indata.FieldReader.get_field_reader(filenametemplate,format) 
 
-   @property
-   def filenametemplate(self) : 
-      return self._filenametemplate
 
-   @property
-   def varname(self) : 
-      return self._varname
-
-   @property
-   def unit(self) : 
-      return self._unit
-
-   @property
-   def format(self) : 
-      return self._format
-
-   def get_timestep(self,dt,unit=None) : 
-
-      # Do unit conversion to get correct output unit
-      if unit is not None :
-         mycfunit = cfunits.Units(unit)
-      tmp = numpy.squeeze(self._fieldreader.get_timestep(self._varname,dt))
-      if not self._cfunit.equals(mycfunit) :
-         print "Unit conversion:",self.varname,"unit=",self._cfunit, "targetunit=", mycfunit
-         print "Unit conversion:max=",tmp.max()
-         tmp=cfunits.Units.conform(tmp,self._cfunit,mycfunit)
-         print "Unit conversion:max after=",tmp.max()
-      return tmp
-
-   def get_coords(self,dt) : 
-      return self._fieldreader.get_coords(self._varname,dt)
-
-   def get_grid(self,dt) : 
-      return self._fieldreader.get_grid(self._varname,dt)
 
 
 class AtmosphericForcing(object) :
@@ -107,6 +90,8 @@ class AtmosphericForcing(object) :
       self._rootPath = self._element.attrib["rootPath"]
       self._timestep = self._element.attrib["timestep"]
       if "rootPath" in self._element.attrib.keys(): self._rootPath = self._element.attrib["rootPath"]
+
+     
       if self._timestep[-1] == "h" :
          self._timestep = datetime.timedelta(hours=int(self._timestep[:-1]))
       else :
@@ -123,43 +108,47 @@ class AtmosphericForcing(object) :
       # Parse the available fields and create forcingfield class
       elements = self._element.findall('field')
       self._fields   = {} 
-      for i in elements :
-         name             = i.attrib["known_name"]    # Variable names known to this module
-         filenametemplate = i.attrib["file"]    # File known to this module
-         varname          = i.attrib["varname"] # Variable name in file
-         unit             = i.attrib["unit"]    # 
-         if self._rootPath is not None :
-            filenametemplate = filenametemplate.replace("[rootPath]",self._rootPath)
+      for xml_element in elements :
+
+         # Name must be "known" to this routine
+         name             = xml_element.attrib["known_name"]    # Variable names known to this module
          if name not in _all_known_names :
             msg = "Unknown field with name %s"%name
             raise AtmosphericForcingError,msg
 
-         self._fields[name] = ForcingField(filenametemplate,varname,unit,self._format) 
+         # We can specify coordinate properties (some times these are wrongly specified or missing).
+         # Here we treat the coords as a dict
+         tmp = xml_element.findall('coordinate')
+         coord_props={}
+         for el2 in tmp :
+            if "varname" in el2.attrib.keys() :
+               coord_props[el2.attrib["varname"]] = dict([(elem[0],elem[1]) for elem in el2.attrib.items() if elem[0] <> "varname"])
+         #print coord_props
+
+         self._fields[name] = modeltools.tools.ForcingFieldFromXml(xml_element,self._format,rootPath=self._rootPath,
+               coord_props=coord_props)
+
 
    def get_timestep(self,dt,varnames=None) :
-      flddict={}
       for k,v in self._fields.items() :
          if varnames is None or k in varnames :
-            flddict[k]=v.get_timestep(dt,unit=_assumed_units[k])
-            #print k,v.varname,v.unit,numpy.max(flddict[k]),_assumed_units[k]
-      self._fielddata=flddict
-      return flddict
+            #if v.is_readable :
+            #   v.get_timestep(dt,unit=_assumed_units[k])
+            v.get_timestep(dt,unit=_assumed_units[k])
 
 
    def get_grid(self,dt,varnames=None) :
       flddict={}
       for k,v in self._fields.items() :
          if varnames is None or k in varnames :
-            flddict[k]=v.get_grid(self._varnames[k],dt)
-      return flddict
+            v.get_grid(dt)
 
 
    def get_coords(self,dt,varnames=None) :
       flddict={}
       for k,v in self._fields.items() :
          if varnames is None or k in varnames :
-            flddict[k]=v.get_coords(dt)
-      return flddict
+            v.get_coords(dt)
 
 
 #   def get_proj4grid(self,dt,varnames=None) :
@@ -169,9 +158,23 @@ class AtmosphericForcing(object) :
 #            flddict[k]=v.get_proj4grid(self._varnames[k],dt)
 #      return flddict
 
+#   @property 
+#   def field(self) : 
+#      return self._fields
+
+   def __getitem__(self,i) :
+      return self._fields[i]
+
+
    @property
    def timestep(self) :
       return self._timestep
+
+   @property
+   def timestep_in_days(self) :
+      t=self.timestep
+      t=t.days+t.seconds/86400.
+      return t
 
    @property
    def varnames(self) :
@@ -184,42 +187,115 @@ class AtmosphericForcing(object) :
 
    def calculate_windstress(self) :
       if "10u" in self.known_names and "10v" in self.known_names :
-         self._fielddata["taux"], self._fielddata["tauy"] = calculate_windstress(self["10u"],self["10v"])
+         self._fields["taux"] =  modeltools.tools.ForcingFieldCopy("taux","","taux","","dummy",accumulation_time=None,rootPath=None) 
+         self._fields["tauy"] =  modeltools.tools.ForcingFieldCopy("tauy","","tauy","","dummy",accumulation_time=None,rootPath=None) 
+         self._fielddata["taux"], self._fielddata["tauy"] = calculate_windstress(self.field["10u"].data,self.field["10v"].data)
       else :
          raise AtmosphericForcingError,"Can not calculate wind stress without 10 meter winds"
 
 
    def calculate_windspeed(self) :
       if "10u" in self.known_names and "10v" in self.known_names :
-         self._fielddata["wspd"] = numpy.sqrt(self["10u"]**2+self["10v"]**2)
+         self._fields["wspd"]    = modeltools.tools.ForcingFieldCopy("wspd",self._fields["10u"],_assumed_units["wspd"])
+         self["wspd"].set_data(numpy.sqrt(self["10u"].data**2+self["10v"].data**2))
       else :
          raise AtmosphericForcingError,"Can not calculate wind speed without 10 meter winds"
 
+
    def calculate_ustar(self) :
       if "taux" in self.known_names and "taux" in self.known_names :
-         self._fielddata["ustar"] = numpy.sqrt((self["taux"]**2+self["tauy"]**2)*1e-3)
+         self._fields["ustar"]    = modeltools.tools.ForcingFieldCopy("ustar",self["taux"],_assumed_units["ustar"])
+         self["ustar"].set_data(numpy.sqrt((self["taux"].data**2+self["tauy"].data**2)*1e-3))
       else :
          raise AtmosphericForcingError,"Can not calculate wind stress without 10 meter winds"
+
 
    def calculate_vapmix(self) :
       if "2t" in self.known_names and "msl" in self.known_names and "2d" in self.known_names:
-         e = satvap(self["2d"])
-         self._fielddata["vapmix"] = vapmix(e,self["msl"])
+         e = satvap(self["2d"].data)
+         self._fields["vapmix"]    = modeltools.tools.ForcingFieldCopy("vapmix",self["2t"],_assumed_units["vapmix"])
+         self["vapmix"].set_data(vapmix(e,self["msl"].data))
       else :
          raise AtmosphericForcingError,"Can not calculate wind stress without 10 meter winds"
      
      
-     
-     
-     
-     
-     
-     
+   def calculate_tsrd(self) :
+      # Calculates downwelling longwave radiation
+      if "tcc" in self.known_names and "2t" in self.known_names and "2d" in self.known_names :
+         e = satvap(self["2d"].data)
+         self._fields["tsrd"]    = modeltools.tools.ForcingFieldCopy("tsrd",self["2d"],_assumed_units["tsrd"])
+         self._fields["tsrd"].set_data(tsrd_efimova_jacobs(self["2t"].data,e,self["tcc"].data))
+      # Estimate from surface parameters
+      elif "tcc" in self.known_names and "2t" in self.known_names :
+         self._fields["tsrd"]          = modeltools.tools.ForcingFieldCopy("tsrd",self["2t"],_assumed_units["tsrd"])
+         self["tsrd"].set_data(tsrd_maykut_jacobs(self["2t"].data,e,self["tcc"].data))
+      else :
+         raise AtmosphericForcingError,"Can not calculate TSRD"
 
-   def __getitem__(self,i) :
-      return self._fielddata[i]
+     
+   def calculate_ssrd(self) :
+      # Calculates downwelling shortwave radiation
+      #if "ssrd" in self.known_names :
+      #   pass
+      ## Estimate from surface parameters
+      #elif "tcc" in self.known_names  :
+      if "tcc" in self.known_names  :
+         lo,la= self["tcc"].grid
+         srad_top,cosz,cosz_noon =  qsw_et(self["tcc"].time,lo,la)
+         ssrd =  qsw_allsky_rosato(srad_top,cosz,cosz_noon,self["tcc"].data) 
+         self._fields["ssrd"] = modeltools.tools.ForcingFieldCopy("ssrd",self["tcc"],_assumed_units["ssrd"])
+         self["ssrd"].set_data(ssrd)
+         self._fields["sradtop"] = modeltools.tools.ForcingFieldCopy("sradtop",self["tcc"],_assumed_units["sradtop"])
+         self["sradtop"].set_data(srad_top)
+      else :
+         raise AtmosphericForcingError,"Can not calculate SSRD"
 
 
+
+
+#http://www.nersc.no/biblio/formulation-air-sea-fluxes-esop2-version-micom
+#http://regclim.met.no/rapport_4/presentation16/presentation16.htm
+#def qlwd(tair,plat,cc,td)
+#   fqlw  =emiss*stefanb*tair**3
+#   fqlwcc=1.-(.5+.246*abs(plat(i,j)*radian))*cc**1.2
+#c
+#      fqlwi1=fqlw*tair*((.254-4.95e-5*vpair_i)*fqlwcc-4.)
+#      fqlwi2=fqlw*4.
+#c
+#      fqlww1=fqlw*tair*((.254-4.95e-5*vpair_w)*fqlwcc-4.)
+#      fqlww2=fqlwi2
+
+def tsrd_efimova_jacobs(tair,e,cc) :
+   #tair : air temperature [K]
+   #e    : near surface vapor pressure [Pa]
+   #cc   : cloud cover (0-1)
+
+   # Below formula assumes pressure in mBar
+   e_mbar = e * 0.01
+
+   # Clear sky downwelling longwave flux from Eimova(1961)
+   tsrd = _stefanb * tair**4 * (0.746+0.0066*e_mbar) 
+   
+   # Cloud correction by Jacobs(1978)
+   tsrd = tsrd * (1. + 0.26 * cc) 
+
+   return tsrd
+
+   
+def tsrd_maykut_jacobs(tair,cc) :
+   #tair : air temperature [K]
+   #cc   : cloud cover (0-1)
+
+   # Below formula assumes pressure in mBar
+   e_mbar = e * 0.01
+
+   # Clear sky downwelling longwave flux from Maykut and Church (1973). 
+   tsrd = _stefanb * tair**4 * 0.7855
+   
+   # Cloud correction by Jacobs(1978)
+   tsrd = tsrd * (1. + 0.26 * cc) 
+
+   return tsrd
 
 
 
@@ -240,7 +316,7 @@ def windstress(uwind,vwind) :
 
 
 def vapmix(e,p) :
-   # Input is
+   # Input is :
    # e = vapour pressure = saturation vapor pressure at dewpoint temperature 
    # p = air pressure
    vapmix = 0.622 * e / (p-e)
@@ -301,6 +377,99 @@ def  relhumid(sva,svd,msl) :
    bbb = (msl - sva)/sva
    relhumid = 100. * aaa * bbb
    return relhumid
+
+
+
+def qsw_et(dtime,plon,plat) :
+   # BAsed on equations in 
+   # Fourier series representation of the position of the sun
+   # J. W. Spencer
+   # CSIRO Division of Building Research
+   # Melbourne, Victoria
+   #
+   # dtime is datetime object
+   # plon in degrees
+   # plat in degrees
+   # NB: Only suitable for "present day climate"
+
+   radian = numpy.pi/180.
+
+   tmp  = dtime-datetime.datetime(dtime.year,1,1,0,0,0)
+   tmp2 = datetime.datetime(dtime.year+1,1,1,0,0,0)-datetime.datetime(dtime.year,1,1,0,0,0)
+   tmp = tmp.days+tmp.seconds/86400.
+   tmp2 = tmp2.days+tmp2.seconds/86400.
+   logger.debug("Day of year - 31. dec of year: %.4f %.4f"%(tmp,tmp2))
+   dangle = 2*numpy.pi * float(tmp) / tmp2
+   hangle = dtime.hour/24. + dtime.minute/(24.*60.) + dtime.second/3600.
+   #hangle = numpy.mod(hangle-0.5,1.)*2*numpy.pi   # Solar hour angle, 0 at noon
+   hangle = (hangle-0.5)*2*numpy.pi   # Solar hour angle, 0 at noon
+
+   logger.debug("day angle=%.4f"%dangle)
+   logger.debug("time hour angle at Greenwich=%.4f"%hangle)
+
+   if abs(dtime.year - 2000) > 3000. :
+      raise AtmosphericForcingError, "qsw_et only suitable for present day climate"
+
+
+   # Solar declination in radians
+   decli=.006918+.070257*numpy.sin(dangle)   -.399912*numpy.cos(dangle)      \
+                +.000907*numpy.sin(2.*dangle)-.006758*numpy.cos(2.*dangle)   \
+                +.001480*numpy.sin(3.*dangle)-.002697*numpy.cos(3.*dangle)
+
+   # Equation of time in radians
+   eot = 0.0000075 + 0.001868*numpy.cos(dangle) - 0.032077*numpy.sin(dangle) \
+        -0.014615*numpy.cos(2*dangle)           - 0.040849*numpy.sin(2*dangle)
+
+   # Inverse square distance from sun (1/r**2)
+   isqd =   1.000110 + 0.034221*numpy.cos(dangle)   + 0.001280*numpy.sin(dangle)  \
+                     + 0.000719*numpy.cos(2*dangle) + 0.000077*numpy.sin(2*dangle)
+
+   # eot indicates offset from UT time. Negative means that UT time is faster than  solar time
+   hangle = hangle + eot
+
+   # Local solar hour angle
+   loc_hangle=hangle+plon*radian
+
+   # Solar Zenith angle
+   cosz_noon = numpy.sin(plat*radian)*numpy.sin(decli) + numpy.cos(plat*radian)*numpy.cos(decli)
+   cosz      = numpy.sin(plat*radian)*numpy.sin(decli) + numpy.cos(plat*radian)*numpy.cos(decli)*numpy.cos(loc_hangle)
+
+   cosz     =numpy.maximum(0.,numpy.minimum(1.,cosz     ))
+   cosz_noon=numpy.maximum(0.,numpy.minimum(1.,cosz_noon))
+
+   srad =_s0*cosz
+
+   logger.debug("declination in degrees      : %.4f"%(decli*180./numpy.pi))
+   logger.debug("equation of time  in degrees: %.4f"%(eot*180./numpy.pi))
+   logger.debug("equation of time  in minutes: %.3f"%(1440 * eot/(2*numpy.pi)))
+   #logger.debug("Zenith at solar noon        : ",numpy.arccos(cosz)*180./numpy.pi)
+   logger.debug("time hour angle at Greenwich, corrected for eot=%.4f"%hangle)
+
+   return srad,cosz,cosz_noon
+
+
+def qsw_allsky_rosato(srad_top,cosz,cosz_noon,cc) :
+   # Follows Rosato and Miyakoda[1988]
+   # srad = cloud-top incident radiation
+   # cosz = cosine of solar zenith angle
+
+   # direct component
+   sdir=srad_top*0.7**(1./(cosz+1e-2))     #direct radiation component
+   sdif=((1.-_absh2o)*srad_top-sdir)*.5        #diffusive radiation component
+
+   # Solar altitude
+   altdeg=numpy.maximum(0.,numpy.arcsin(cosz_noon))*180./numpy.pi #solar noon altitude in degrees
+
+   cfac=(1.-0.62*cc+0.0019*altdeg)               #cloudiness correction by Reed(1977)
+   ssurf=(sdir+sdif)*cfac
+
+   return ssurf
+
+
+
+
+
+
 
 
 

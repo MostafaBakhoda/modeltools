@@ -4,7 +4,7 @@ import sys
 import logging
 import re
 
-class blkdatError(Exception):
+class BlkdatError(Exception):
     """Base class for exceptions in this module."""
     pass
 
@@ -20,7 +20,7 @@ logger.addHandler(ch)
 
 
 
-class Parser(object) :
+class BlkdatParser(object) :
    """ Class for doing binary input/output on hycom .a files """
    _integer_fields = [ "iversn","iexpt","idm","jdm","itest","jtest","kdm",
       "nhybrd","nsigma","kapref","thflag","vsigma","iniflg","jerlv0","yrflag",
@@ -54,7 +54,7 @@ class Parser(object) :
          m = re.match("^[\s]*(.*)[\s]*'([a-z0-9 _]{6})'[\s]*=[\s]*(.*$)",line.strip())
          if not m :
             print m,line
-            raise blkdatError,"Error when parsing file. Line does not match required pattern"
+            raise BlkdatError,"Error when parsing file. Line does not match required pattern"
 
          value=m.group(1).strip()
          key  =m.group(2).strip()

@@ -2,8 +2,18 @@ import scipy.io.netcdf
 import numpy
 import logging
 import re 
-logger = logging.getLogger()
-logger.setLevel(logging.DEBUG)
+
+
+
+# Set up logger
+_loglevel=logging.DEBUG
+_logger = logging.getLogger(__name__)
+_logger.setLevel(_loglevel)
+formatter = logging.Formatter("%(asctime)s - %(name)10s - %(levelname)7s: %(message)s")
+ch = logging.StreamHandler()
+ch.setLevel(_loglevel)
+ch.setFormatter(formatter)
+_logger.addHandler(ch)
 
 
 default_threshold=-5.

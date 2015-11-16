@@ -14,6 +14,7 @@ ch = logging.StreamHandler()
 ch.setLevel(_loglevel)
 ch.setFormatter(formatter)
 logger.addHandler(ch) 
+logger.propagate=False # Dont propagate to parent in hierarchy (determined by "." in __name__)
 
 
 
@@ -122,7 +123,7 @@ class AFile(object) :
 
       w=w[0:self.idm*self.jdm]
       w.shape=(self.jdm,self.idm)
-      print w.min(),w.max()
+      #print w.min(),w.max()
 
       return w
 
@@ -172,11 +173,11 @@ class BFile(object) :
       if item is not None :
          pattern="^(.*)'(%-6s)'[ =]*"%item
          m=re.match(pattern,line)
-         print "pattern : ",pattern
-         print "line    : ",line
+         logger.debug("scann pattern : %s",pattern)
+         logger.debug("Line to scan  : %s",line)
       else :
          m=re.match("^(.*)'(.*)'[ =]*",line)
-      print "match:",m
+      logger.debug("scan match    : %s"%str(m))
       if m :
          if conversion :
             value = conversion(m.group(1))
@@ -315,6 +316,7 @@ class ABFileRegionalGrid(BFile) :
          super(ABFileRegionalGrid,self).__init__(basename+".b",action)
          self._read_header()
          self._read_field_info()
+         #print self._idm,self._jdm
          self._filea = AFile(self._idm,self._jdm,basename+".a",action,mask=mask,real4=real4,endian=endian)
 
    def _read_header(self) :
@@ -471,7 +473,7 @@ class ABFileForcing(BFile) :
          self._fileb.write("\n")
          self._fileb.write("i/jdm =%5d %5d\n"%(self._idm,self._jdm))
       else :
-         super(ABFileFileForcing,self).__init__(basename+".b",action)
+         super(ABFileForcing,self).__init__(basename+".b",action)
          self._read_header()
          self._read_field_info()
          self._filea = AFile(self._idm,self._jdm,basename+".a",action,mask=mask,real4=real4,endian=endian)
@@ -484,15 +486,15 @@ class ABFileForcing(BFile) :
       self._header.append(self.readline())
       self._header.append(self.readline())
       self._header.append(self.readline())
-      self._cline1=self.header[0].trim()
-      self._cline2=self.header[1].trim()
-      m = re.match("i/jdm =([0-9]+)[ ]+([0-9]+)",self.header[4].trim())
+      self._cline1=self._header[0].strip()
+      self._cline2=self._header[1].strip()
+      m = re.match("i/jdm[ ]*=[ ]*([0-9]+)[ ]+([0-9]+)",self._header[4].strip())
       if m :
          self._idm = int(m.group(1))
          self._jdm = int(m.group(2))
       else :
          raise  AFileError, "Unable to parse idm, jdm from header. File=%s, Parseable string=%s"%(
-            self._filename, self.header[4].trim())
+               self._filename, self._header[4].strip())
 
    def _read_field_info(self) :
       # Get list of fields from .b file
@@ -503,13 +505,16 @@ class ABFileForcing(BFile) :
       line=self.readline().strip()
       i=0
       while line :
-         m = re.match("^min,max[ ]+(.*)[ ]*=(.*)",line)
+         m = re.match("^(.*):dtime1,range[ ]*=[ ]+([0-9\-\.e+]+)[ ]+([0-9\-\.e+]+)[ ]*,[ ]*([0-9\-\.e+]+)[ ]*([0-9\-\.e+]+)",line)
          if m :
             self._fields[i] = {}
-            self._fields[i]["field"] = m.group(1).strip()
-            elem = [elem.strip() for elem in m.group(2).split() if elem.strip()]
-            self._fields[i]["min"] = float(elem[0])
-            self._fields[i]["max"] = float(elem[1])
+            self._fields[i]["field"]  = m.group(1).strip()
+            self._fields[i]["dtime1"] = float(m.group(2).strip())
+            self._fields[i]["range"]  = float(m.group(3).strip())
+            self._fields[i]["min"]  = float(m.group(4).strip())
+            self._fields[i]["max"]  = float(m.group(5).strip())
+         else :
+            raise NameError,"cant parse forcing field"
          i+=1
          line=self.readline().strip()
 
@@ -519,16 +524,9 @@ class ABFileForcing(BFile) :
       self._fileb.write("%s(synoptic):dtime1,range = %12.4f%12.4f,%14.6e%14.6e\n"%(fieldname,dtime1,rdtime,hmin,hmax))
 
 
-   def readfield(self,fieldname) :
+   def readfield(self,record) :
       """ Read field corresponding to fieldname and level from archive file"""
-      record = None
-      for i,d in self._fields.items() :
-         if d["field"] == fieldname :
-            record=i
-      if record  is not None :
-         w = self.readrecord(record) 
-      else :
-         w = None
+      w = self.readrecord(record) 
       return w
 
 
@@ -544,7 +542,7 @@ def write_bathymetry(exp,version,d,threshold) :
    regf = ABFileBathy("depth_%s_%02d"%(exp,version),"w",idm=d.shape[0],jdm=d.shape[1],mask=True)
    d=numpy.copy(d)
    mask=d <= threshold
-   print "in write_bathymetry",numpy.count_nonzero(mask),mask.size
+   #print "in write_bathymetry",numpy.count_nonzero(mask),mask.size
    regf.writefield(d,mask)
    regf.close()
    

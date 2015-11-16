@@ -29,7 +29,8 @@ def datetime_to_ordinal(dt,yrflag) :
    else :
       td = dt - datetime.datetime(dt.year,1,1,0,0,0) 
       tdd = td.days + 1
-      tdh = td.seconds/86400.
+      #tdh = td.seconds/86400.
+      tdh = td.seconds/3600.
    return tdd,tdh
 
 
