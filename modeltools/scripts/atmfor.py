@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 import modeltools.hycom
 import argparse
 import datetime

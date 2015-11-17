@@ -23,8 +23,8 @@ atmosphere_variable_units = {
       "vapmix"  : "kg kg**-1",
       "msl"     : "Pa",
       "tp"      : "m s**-1",
-      "ssrd"    : "W m**-2 s**-1",
-      "tsrd"    : "W m**-2 s**-1",
+      "ssrd"    : "W m**-2",
+      "tsrd"    : "W m**-2",
       "taux"    : "N m**-2",
       "tauy"    : "N m**-2"
       }

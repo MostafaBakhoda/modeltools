@@ -52,11 +52,11 @@ _assumed_units = {
       "tcc":"1",
       "tp":"m s**-1",
       "ro":"1",
-      "ssrd":"W m**-2 s**-1",
-      "tsrd":"W m**-2 s**-1",
+      "ssrd":"W m**-2",
+      "tsrd":"W m**-2",
       "taux":"N m**-2",
       "tauy":"N m**-2",
-      "sradtop":"W m**-2 s**-1",
+      "sradtop":"W m**-2",
       "vapmix":"kg kg**-1"
       }
 
@@ -124,6 +124,8 @@ class AtmosphericForcing(object) :
             if "varname" in el2.attrib.keys() :
                coord_props[el2.attrib["varname"]] = dict([(elem[0],elem[1]) for elem in el2.attrib.items() if elem[0] <> "varname"])
          #print coord_props
+
+         print name,coord_props
 
          self._fields[name] = modeltools.tools.ForcingFieldFromXml(xml_element,self._format,rootPath=self._rootPath,
                coord_props=coord_props)

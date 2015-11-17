@@ -521,7 +521,8 @@ class ABFileForcing(BFile) :
 
    def writefield(self,field,mask,fieldname,dtime1,rdtime) :
       hmin,hmax = self._filea.zaiowr_a(field,mask)
-      self._fileb.write("%s(synoptic):dtime1,range = %12.4f%12.4f,%14.6e%14.6e\n"%(fieldname,dtime1,rdtime,hmin,hmax))
+      #print fieldname,field.min(),field.max(),hmin,hmax
+      self._fileb.write("%s:dtime1,range = %12.4f%12.4f,%14.6e%14.6e\n"%(fieldname,dtime1,rdtime,hmin,hmax))
 
 
    def readfield(self,record) :

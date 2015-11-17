@@ -83,13 +83,12 @@ def atmfor(start,end,af,grid_file="regional.grid",blkdat_file="blkdat.input",plo
                if k in af.known_names :
                    ffiles[k]=modeltools.hycom.io.ABFileForcing("forcing.%s"%vname,"w",idm=Nx, jdm=Ny,
                                                                cline1="ERA Interim",cline2=vname)
+                   #ffiles[k]=modeltools.hycom.io.ABFileForcing("%s"%vname,"w",idm=Nx, jdm=Ny,
+                   #                                            cline1="ERA Interim",cline2=vname)
                    
        # Interpolation of all fields and unit conversion
        newfld={}
        for kn in [elem for elem in af.known_names if elem in ffiles.keys()] :
-               
-           # Name used by hycom
-           vname=modeltools.hycom.atmosphere_variable_names[kn]
 
            # Coordinates
            lo,la=af[kn].coords
@@ -113,16 +112,18 @@ def atmfor(start,end,af,grid_file="regional.grid",blkdat_file="blkdat.input",plo
        # Loop over open files 
        # TODO: HYCOM specific
        for kn in ffiles.keys() :
+               
+           # Name used by hycom
+           vname=modeltools.hycom.atmosphere_variable_names[kn]
 
            # Write to hycom file
            newdt=af[kn].time
-           ord_day,hour=modeltools.hycom.datetime_to_ordinal(newdt,yrflag)
+           ord_day,hour,isec=modeltools.hycom.datetime_to_ordinal(newdt,yrflag)
            dtime=modeltools.hycom.dayfor(newdt.year,ord_day,hour,yrflag)
            ffiles[kn].writefield(newfld[kn],newfld[kn],vname,dtime,af.timestep_in_days)
 
            # Write diagnostics, if requested
            if plot_diag :
-              vname=modeltools.hycom.atmosphere_variable_names[kn]
               tmp="forcing.%s."%vname 
               tmp=tmp+"%Y%m%d%H.png"
               tmp=newdt.strftime(tmp)

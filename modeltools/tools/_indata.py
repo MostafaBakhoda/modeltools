@@ -28,10 +28,11 @@ class FieldReaderError(Exception):
 
 
 class FieldReader(object) :
-   def __init__(self,filenametemplate,coord_props={}) :
+   def __init__(self,filenametemplate,coord_props={},time_offset=datetime.timedelta(0)) :
       self._filenametemplate = filenametemplate
       self._filename         = None
       self._coord_props      = coord_props
+      self._time_offset      = time_offset  
 
 
    def file_is_open(self,newfilename) :
@@ -44,7 +45,12 @@ class FieldReader(object) :
 
    def find_timestep(self,dt,varname) :
       tmp = self._coordmap[varname]["time"]-dt
+      #print self._filename
+      #print dt
+      #print tmp[0]
       tmp = [ i.days*86400 + i.seconds  for i in tmp]
+      #print tmp[0]
+      #print numpy.where(numpy.array(tmp)==0)
       I = numpy.where(numpy.array(tmp)==0)[0]
       return I
 
@@ -68,16 +74,16 @@ class FieldReader(object) :
 
 
    @classmethod
-   def get_field_reader(cls,filenametemplate,format,coord_props=None) :
+   def get_field_reader(cls,filenametemplate,format,coord_props=None,time_offset=datetime.timedelta(0)) :
       if format == "netcdf" :
-         return NetcdfFieldReader(filenametemplate,coord_props=coord_props)
+         return NetcdfFieldReader(filenametemplate,coord_props=coord_props,time_offset=time_offset)
       else :
          raise FieldReaderError,"Only netcdf supported at the moment"
 
 
 class NetcdfFieldReader(FieldReader) :
-   def __init__(self,filenametemplate,coord_props={}) :
-      super(NetcdfFieldReader,self).__init__(filenametemplate,coord_props=coord_props)
+   def __init__(self,filenametemplate,coord_props={},time_offset=datetime.timedelta(0)) :
+      super(NetcdfFieldReader,self).__init__(filenametemplate,coord_props=coord_props,time_offset=time_offset)
 
    def open(self) :
       #self._nc = scipy.io.netcdf.netcdf_file(self._filename,"r")
@@ -162,7 +168,8 @@ class NetcdfFieldReader(FieldReader) :
 
    def open_if_needed(self,dt) :
       # Open file if necessary
-      newfilename=dt.strftime(self._filenametemplate)
+      tmpdt=dt-self._time_offset
+      newfilename=tmpdt.strftime(self._filenametemplate)
       if not self.file_is_open(newfilename) : 
          if self._filename is not None : self._nc.close()
          self._filename = newfilename
@@ -203,7 +210,6 @@ class ForcingField(object) :
       self._varname          = varname          # Variable name in file
       self._units            = unit
       self._format           = format
-
       #print self._name,self._varname,self._unit,self._accumulation_time
 
       if rootPath is not None :
@@ -224,10 +230,12 @@ class ForcingField(object) :
          self._accumulation_scale_factor = 1./(tmp.days*86400. + tmp.seconds)
       else :
          self._accumulation_scale_factor = 1.
+         self._accumulation_time=datetime.timedelta(0)
+
 
       self._cfunit             = cfunits.Units(units=self._units)
       self._format             = format
-      self._fieldreader = FieldReader.get_field_reader(self._filenametemplate,format,coord_props=coord_props) 
+      self._fieldreader = FieldReader.get_field_reader(self._filenametemplate,format,coord_props=coord_props,time_offset=self._accumulation_time) 
 
 
 
@@ -250,25 +258,27 @@ class ForcingField(object) :
          tmp=cfunits.Units.conform(tmp,self._cfunit,mycfunit)
          #print "Unit conversion:max after=",tmp.max()
 
+#Approach 1: Move dt back in time
+#     if self._accumulation_time is not datetime.timedelta(0) :
+#        tmptime = self._accumulation_time
+#        tmptime = (tmptime.days*86400 +tmptime.seconds)/2
+#        tmptime = datetime.timedelta(seconds=tmptime)
+#        outdt=outdt-tmptime
+
+
+#Approach 2: Calculate average at this time
+      # If this is an accumulated field, we need to get next field and interpolate
+      # TODO: Check if this is really necessary
       if self._accumulation_time is not None :
-         tmptime = self._accumulation_time
-         tmptime = (tmptime.days*86400 +tmptime.seconds)/2
-         tmptime = datetime.timedelta(seconds=tmptime)
-         outdt=outdt-tmptime
-
-
-#      # If this is an accumulated field, we need to get next field and interpolate
-#      # TODO: Check if this is really necessary
-#      if self._accumulation_time is not None :
-#         logger.info("Computing interpolated value for accumulated field %s"%self%_varname
-#         tmp2 = numpy.squeeze(self._fieldreader.get_timestep(self._varname,dt+self._accumulation_time))*self._accumulation_scale_factor
-#         if not self._cfunit.equals(mycfunit) :
-#            #print "Unit conversion:",self.varname,"unit=",self._cfunit, "targetunit=", mycfunit
-#            #print "Unit conversion:max=",tmp.max()
-#            tmp2=cfunits.Units.conform(tmp2,self._cfunit,mycfunit)
-#            #print "Unit conversion:max after=",tmp.max()
-#         tmp = 0.5*(tmp + tmp2)
-#         outdt = dt
+         logger.info("Computing interpolated value for accumulated field %s"%self._varname)
+         tmp2 = numpy.squeeze(self._fieldreader.get_timestep(self._varname,dt))*self._accumulation_scale_factor
+         if not self._cfunit.equals(mycfunit) :
+            #print "Unit conversion:",self.varname,"unit=",self._cfunit, "targetunit=", mycfunit
+            #print "Unit conversion:max=",tmp.max()
+            tmp2=cfunits.Units.conform(tmp2,self._cfunit,mycfunit)
+            #print "Unit conversion:max after=",tmp.max()
+         tmp = 0.5*(tmp + tmp2)
+         outdt = dt
 
 
       #TODO - may be optimized out
