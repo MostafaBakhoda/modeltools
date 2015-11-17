@@ -270,8 +270,8 @@ class Proj4Grid(Grid) :
 
    def p_azimuth(self) :
       plon,plat = self.pgrid(extended=True)
-      print "1",fwd_azimuth( 0, 0,10,0)
-      print "2",fwd_azimuth( 0, 0,0,10)
+      #print "1",fwd_azimuth( 0, 0,10,0)
+      #print "2",fwd_azimuth( 0, 0,0,10)
       #return fwd_azimuth( plon[1:-1,1:-1],plat[1:-1,1:-1], 
       #                    plon[2:,1:-1]   ,plat[2:,1:-1])
       return fwd_azimuth( plon[1:-1,1:-1],plat[1:-1,1:-1], 
@@ -456,10 +456,10 @@ class Proj4Grid(Grid) :
 
 
       itest=0
-      print nc["grid_center_lon"][itest]
-      print nc["grid_corner_lon"][itest]
-      print nc["grid_center_lat"][itest]
-      print nc["grid_corner_lat"][itest]
+      #print nc["grid_center_lon"][itest]
+      #print nc["grid_corner_lon"][itest]
+      #print nc["grid_center_lat"][itest]
+      #print nc["grid_corner_lat"][itest]
       figure = matplotlib.pyplot.figure(figsize=(8,8))
       ax=figure.add_subplot(111)
       ax.hold(True)

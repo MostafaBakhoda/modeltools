@@ -27,8 +27,8 @@ def write_netcdf_grid(grid,filename) :
    # So we have to fetch the extended grid here
 
    ulon,ulat=grid.cice_ugrid()
-   print ulon.shape
-   print grid.Nx
+   #print ulon.shape
+   #print grid.Nx
    hte=grid.cice_hte()
    htn=grid.cice_htn()
    hus=grid.cice_hus()
