@@ -9,7 +9,7 @@ atmosphere_variable_names = {
       "msl"     : "mslprs",
       "tp"      : "precip",
       "ssrd"    : "shwflx",
-      "tsrd"    : "radflx",
+      "strd"    : "radflx",
       "taux"    : "taux",
       "tauy"    : "tauy"
       }
@@ -24,7 +24,7 @@ atmosphere_variable_units = {
       "msl"     : "Pa",
       "tp"      : "m s**-1",
       "ssrd"    : "W m**-2",
-      "tsrd"    : "W m**-2",
+      "strd"    : "W m**-2",
       "taux"    : "N m**-2",
       "tauy"    : "N m**-2"
       }

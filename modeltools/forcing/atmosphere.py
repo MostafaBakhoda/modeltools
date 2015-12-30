@@ -25,11 +25,10 @@ _stefanb=5.67e-8
 _s0=1365.                 # w/m^2  solar constant
 _absh2o=0.09              # ---    absorption of water and ozone
 
+# Variable names known by this module
 _all_known_names = [
       "10u",
       "10v",
-      "taux",
-      "tauy",
       "2t",
       "2d",
       "msl",
@@ -38,10 +37,16 @@ _all_known_names = [
       "tp",
       "ro",
       "ssrd",
-      "tsrd"
+      "strd",
+      "taux",
+      "tauy",
+      "wspd",
+      "ustar",
+      "sradtop",
+      "vapmix"
       ]
 
-# Units used by internal calculations
+# Units used by internal calculations in this module
 _assumed_units = {
       "10u":"m s**-1",
       "10v":"m s**-1",
@@ -53,9 +58,11 @@ _assumed_units = {
       "tp":"m s**-1",
       "ro":"1",
       "ssrd":"W m**-2",
-      "tsrd":"W m**-2",
+      "strd":"W m**-2",
       "taux":"N m**-2",
       "tauy":"N m**-2",
+      "wspd":"m s**-1",
+      "ustar":"m s**-1",
       "sradtop":"W m**-2",
       "vapmix":"kg kg**-1"
       }
@@ -124,8 +131,7 @@ class AtmosphericForcing(object) :
             if "varname" in el2.attrib.keys() :
                coord_props[el2.attrib["varname"]] = dict([(elem[0],elem[1]) for elem in el2.attrib.items() if elem[0] <> "varname"])
          #print coord_props
-
-         print name,coord_props
+         #print name,coord_props
 
          self._fields[name] = modeltools.tools.ForcingFieldFromXml(xml_element,self._format,rootPath=self._rootPath,
                coord_props=coord_props)
@@ -182,12 +188,19 @@ class AtmosphericForcing(object) :
    def varnames(self) :
       return [ elem.varname for elem in self._fields.values ]
 
+   # Lists all field "known" names  (readable from file and calculated)
    @property
    def known_names(self) :
       return self._fields.keys()
 
+   # Lists all fields (readable from file)
+   @property
+   def known_names_explicit(self) :
+      return [elem[0] for elem in self._fields.items() if elem[1].is_readable]
+
 
    def calculate_windstress(self) :
+      logger.info("Calculating wind stress (taux, tauy) from wind fields")
       if "10u" in self.known_names and "10v" in self.known_names :
          self._fields["taux"] =  modeltools.tools.ForcingFieldCopy("taux","","taux","","dummy",accumulation_time=None,rootPath=None) 
          self._fields["tauy"] =  modeltools.tools.ForcingFieldCopy("tauy","","tauy","","dummy",accumulation_time=None,rootPath=None) 
@@ -197,6 +210,7 @@ class AtmosphericForcing(object) :
 
 
    def calculate_windspeed(self) :
+      logger.info("Calculating wind speed (wspd) from wind fields")
       if "10u" in self.known_names and "10v" in self.known_names :
          self._fields["wspd"]    = modeltools.tools.ForcingFieldCopy("wspd",self._fields["10u"],_assumed_units["wspd"])
          self["wspd"].set_data(numpy.sqrt(self["10u"].data**2+self["10v"].data**2))
@@ -205,6 +219,7 @@ class AtmosphericForcing(object) :
 
 
    def calculate_ustar(self) :
+      logger.info("Calculating ustar from taux, tauy")
       if "taux" in self.known_names and "taux" in self.known_names :
          self._fields["ustar"]    = modeltools.tools.ForcingFieldCopy("ustar",self["taux"],_assumed_units["ustar"])
          self["ustar"].set_data(numpy.sqrt((self["taux"].data**2+self["tauy"].data**2)*1e-3))
@@ -213,6 +228,7 @@ class AtmosphericForcing(object) :
 
 
    def calculate_vapmix(self) :
+      logger.info("Calculating vapmix")
       if "2t" in self.known_names and "msl" in self.known_names and "2d" in self.known_names:
          e = satvap(self["2d"].data)
          self._fields["vapmix"]    = modeltools.tools.ForcingFieldCopy("vapmix",self["2t"],_assumed_units["vapmix"])
@@ -221,21 +237,23 @@ class AtmosphericForcing(object) :
          raise AtmosphericForcingError,"Can not calculate wind stress without 10 meter winds"
      
      
-   def calculate_tsrd(self) :
+   def calculate_strd(self) :
+      logger.info("Calculating strd")
       # Calculates downwelling longwave radiation
       if "tcc" in self.known_names and "2t" in self.known_names and "2d" in self.known_names :
          e = satvap(self["2d"].data)
-         self._fields["tsrd"]    = modeltools.tools.ForcingFieldCopy("tsrd",self["2d"],_assumed_units["tsrd"])
-         self._fields["tsrd"].set_data(tsrd_efimova_jacobs(self["2t"].data,e,self["tcc"].data))
+         self._fields["strd"]    = modeltools.tools.ForcingFieldCopy("strd",self["2d"],_assumed_units["strd"])
+         self._fields["strd"].set_data(strd_efimova_jacobs(self["2t"].data,e,self["tcc"].data))
       # Estimate from surface parameters
       elif "tcc" in self.known_names and "2t" in self.known_names :
-         self._fields["tsrd"]          = modeltools.tools.ForcingFieldCopy("tsrd",self["2t"],_assumed_units["tsrd"])
-         self["tsrd"].set_data(tsrd_maykut_jacobs(self["2t"].data,e,self["tcc"].data))
+         self._fields["strd"]          = modeltools.tools.ForcingFieldCopy("strd",self["2t"],_assumed_units["strd"])
+         self["strd"].set_data(strd_maykut_jacobs(self["2t"].data,e,self["tcc"].data))
       else :
          raise AtmosphericForcingError,"Can not calculate TSRD"
 
      
    def calculate_ssrd(self) :
+      logger.info("Calculating ssrd")
       # Calculates downwelling shortwave radiation
       #if "ssrd" in self.known_names :
       #   pass
@@ -267,7 +285,7 @@ class AtmosphericForcing(object) :
 #      fqlww1=fqlw*tair*((.254-4.95e-5*vpair_w)*fqlwcc-4.)
 #      fqlww2=fqlwi2
 
-def tsrd_efimova_jacobs(tair,e,cc) :
+def strd_efimova_jacobs(tair,e,cc) :
    #tair : air temperature [K]
    #e    : near surface vapor pressure [Pa]
    #cc   : cloud cover (0-1)
@@ -276,15 +294,15 @@ def tsrd_efimova_jacobs(tair,e,cc) :
    e_mbar = e * 0.01
 
    # Clear sky downwelling longwave flux from Eimova(1961)
-   tsrd = _stefanb * tair**4 * (0.746+0.0066*e_mbar) 
+   strd = _stefanb * tair**4 * (0.746+0.0066*e_mbar) 
    
    # Cloud correction by Jacobs(1978)
-   tsrd = tsrd * (1. + 0.26 * cc) 
+   strd = strd * (1. + 0.26 * cc) 
 
-   return tsrd
+   return strd
 
    
-def tsrd_maykut_jacobs(tair,cc) :
+def strd_maykut_jacobs(tair,cc) :
    #tair : air temperature [K]
    #cc   : cloud cover (0-1)
 
@@ -292,12 +310,12 @@ def tsrd_maykut_jacobs(tair,cc) :
    e_mbar = e * 0.01
 
    # Clear sky downwelling longwave flux from Maykut and Church (1973). 
-   tsrd = _stefanb * tair**4 * 0.7855
+   strd = _stefanb * tair**4 * 0.7855
    
    # Cloud correction by Jacobs(1978)
-   tsrd = tsrd * (1. + 0.26 * cc) 
+   strd = strd * (1. + 0.26 * cc) 
 
-   return tsrd
+   return strd
 
 
 
@@ -321,6 +339,8 @@ def vapmix(e,p) :
    # Input is :
    # e = vapour pressure = saturation vapor pressure at dewpoint temperature 
    # p = air pressure
+   print e.shape , p.shape
+
    vapmix = 0.622 * e / (p-e)
    return vapmix
 

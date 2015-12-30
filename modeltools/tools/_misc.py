@@ -54,9 +54,9 @@ def shapiro_filter(w,threshold=_default_threshold,S=_default_S) :
 def remove_one_neighbour_cells(inv,threshold=_default_threshold) :
    v = numpy.copy(inv) 
    v[-1,:] = threshold
-   v[1,:] = threshold
+   v[0,:] = threshold
    v[:,-1] = threshold
-   v[:,1] = threshold
+   v[:,0] = threshold
    I=[[-1]]
    while len(I[0])>0 :
       v0   = v[1:-1,1:-1] < threshold
@@ -77,9 +77,9 @@ def remove_one_neighbour_cells(inv,threshold=_default_threshold) :
 def remove_islets(inv,threshold=_default_threshold) :
    v = numpy.copy(inv) 
    v[-1,:] = threshold
-   v[1,:] = threshold
+   v[0,:] = threshold
    v[:,-1] = threshold
-   v[:,1] = threshold
+   v[:,0] = threshold
    I=[[-1]]
    while len(I[0])>0 :
       v0   = v[1:-1,1:-1] >= threshold

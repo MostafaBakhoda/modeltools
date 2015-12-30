@@ -11,7 +11,7 @@ import scipy
 
 
 # Set up logger
-_loglevel=logging.DEBUG
+_loglevel=logging.INFO
 logger = logging.getLogger(__name__)
 logger.setLevel(_loglevel)
 formatter = logging.Formatter("%(asctime)s - %(name)10s - %(levelname)7s: %(message)s")
@@ -88,6 +88,7 @@ class NetcdfFieldReader(FieldReader) :
    def open(self) :
       #self._nc = scipy.io.netcdf.netcdf_file(self._filename,"r")
       #print "open started"
+      logger.info("Opening %s"%self._filename)
       self._nc = netCDF4.Dataset(self._filename,"r")
 
       # Read and map coordinate variables of all input vars
@@ -210,7 +211,6 @@ class ForcingField(object) :
       self._varname          = varname          # Variable name in file
       self._units            = unit
       self._format           = format
-      #print self._name,self._varname,self._unit,self._accumulation_time
 
       if rootPath is not None :
          self._filenametemplate = self._filenametemplate.replace("[rootPath]",rootPath)
@@ -231,6 +231,7 @@ class ForcingField(object) :
       else :
          self._accumulation_scale_factor = 1.
          self._accumulation_time=datetime.timedelta(0)
+      #print name,accumulation_time
 
 
       self._cfunit             = cfunits.Units(units=self._units)
@@ -258,20 +259,13 @@ class ForcingField(object) :
          tmp=cfunits.Units.conform(tmp,self._cfunit,mycfunit)
          #print "Unit conversion:max after=",tmp.max()
 
-#Approach 1: Move dt back in time
-#     if self._accumulation_time is not datetime.timedelta(0) :
-#        tmptime = self._accumulation_time
-#        tmptime = (tmptime.days*86400 +tmptime.seconds)/2
-#        tmptime = datetime.timedelta(seconds=tmptime)
-#        outdt=outdt-tmptime
-
-
 #Approach 2: Calculate average at this time
       # If this is an accumulated field, we need to get next field and interpolate
       # TODO: Check if this is really necessary
-      if self._accumulation_time is not None :
-         logger.info("Computing interpolated value for accumulated field %s"%self._varname)
-         tmp2 = numpy.squeeze(self._fieldreader.get_timestep(self._varname,dt))*self._accumulation_scale_factor
+      if self._accumulation_time <> datetime.timedelta(0):
+         dt2 = dt + self._accumulation_time
+         logger.info("Computing interpolated value for accumulated field %s (Reading additional field at %s)"%(self._varname,str(dt2)))
+         tmp2 = numpy.squeeze(self._fieldreader.get_timestep(self._varname,dt2))*self._accumulation_scale_factor
          if not self._cfunit.equals(mycfunit) :
             #print "Unit conversion:",self.varname,"unit=",self._cfunit, "targetunit=", mycfunit
             #print "Unit conversion:max=",tmp.max()

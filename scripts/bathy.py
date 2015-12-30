@@ -78,6 +78,7 @@ if __name__ == "__main__" :
    for i in range(args.shapiro_passes):
       logger.info("Shapiro filter ... pass %d"%(i+1))
       w3=modeltools.tools.shapiro_filter(w3,threshold=bathy_threshold)
+   #print w3[0:10,200]
 
    # Modify basin 
    w4=numpy.copy(w3)
@@ -94,6 +95,7 @@ if __name__ == "__main__" :
 
    # Mask data where depth below threshold
    w5=numpy.ma.masked_where(w5>=bathy_threshold,w5)
+   #print w5[0:10,200]
 
    # Print to HYCOM and CICE bathymetry files
    # TODO: Find nice generic name for hycom

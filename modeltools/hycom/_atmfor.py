@@ -2,7 +2,6 @@ import datetime
 import cfunits
 import numpy
 #import modeltools.grid
-import modeltools.hycom.io
 import modeltools.hycom
 import modeltools.tools
 import modeltools.forcing.atmosphere
@@ -58,9 +57,13 @@ def atmfor(start,end,af,grid_file="regional.grid",blkdat_file="blkdat.input",plo
    while dt <= end :
        
        logger.info("Reading at %s"%str(dt))
+       #print af.known_names
 
        # Read variables
        af.get_timestep(dt)
+
+       print "msl shape",af["msl"].data.shape
+       print "2d.shape ",af["2d"].data.shape
 
        # Estimate dependent variable on native grid
        # radflx is downwelling longwave radiation
@@ -69,22 +72,22 @@ def atmfor(start,end,af,grid_file="regional.grid",blkdat_file="blkdat.input",plo
            af.calculate_windstress()
            af.calculate_windspeed()
            af.calculate_ustar()
-       af.calculate_vapmix()
-       af.calculate_ssrd()
+       
+       if "vapmix" not in af.known_names_explicit : af.calculate_vapmix()
+       if "ssrd"   not in af.known_names_explicit : af.calculate_ssrd()
        if lwflag == -1 :
-           af.calculate_tsrd()
+           if "strd"   not in af.known_names_explicit : af.calculate_strd()
        else :
            raise ValueError,"TODO: lwflag<>-1 not supported"
 
        # Open output files. Dict uses "known name" when mapping to file object
        # TODO: HYCOM-specific
+       print modeltools.hycom.atmosphere_variable_names.keys()
        if dt == start :
            for k,vname in modeltools.hycom.atmosphere_variable_names.items() :
                if k in af.known_names :
                    ffiles[k]=modeltools.hycom.io.ABFileForcing("forcing.%s"%vname,"w",idm=Nx, jdm=Ny,
                                                                cline1="ERA Interim",cline2=vname)
-                   #ffiles[k]=modeltools.hycom.io.ABFileForcing("%s"%vname,"w",idm=Nx, jdm=Ny,
-                   #                                            cline1="ERA Interim",cline2=vname)
                    
        # Interpolation of all fields and unit conversion
        newfld={}
