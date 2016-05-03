@@ -7,7 +7,8 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot
 import modeltools.forcing.bathy
-import modeltools.hycom.io
+#import modeltools.hycom.io
+import abfile
 import modeltools.cice.io
 import numpy
 from mpl_toolkits.basemap import Basemap
@@ -63,7 +64,9 @@ if __name__ == "__main__" :
    #                              -89.5,45.5,20000,20000,400,300)
    grid1=modeltools.grid.Proj4Grid(args.proj4_string,args.ll_lon,args.ll_lat,args.dx,args.dy,
          args.nx,args.ny)
-   modeltools.hycom.io.write_regional_grid(grid1)
+   #modeltools.hycom.io.write_regional_grid(grid1)
+   grid1dict=modeltools.grid.create_datadict_hycom(grid1)
+   abfile.write_regional_grid(grid1dict)
    modeltools.cice.io.write_netcdf_grid(grid1,"cice_grid.nc")
 
    # Interpolation of bathymetry
@@ -99,7 +102,8 @@ if __name__ == "__main__" :
 
    # Print to HYCOM and CICE bathymetry files
    # TODO: Find nice generic name for hycom
-   modeltools.hycom.io.write_bathymetry("TPTa0.20",1,-w5,-bathy_threshold)
+   #modeltools.hycom.io.write_bathymetry("TPTa0.20",1,-w5,-bathy_threshold)
+   abfile.write_bathymetry("TPTa0.20",1,-w5,-bathy_threshold)
    kmt=numpy.where(~w5.mask,1.,0.)
    modeltools.cice.io.write_netcdf_kmt(kmt,"cice_kmt.nc")
 

@@ -8,12 +8,12 @@ if __name__ == "__main__" :
        def __call__(self, parser, args, values, option_string=None):
           tmp = datetime.datetime.strptime( values, "%Y-%m-%dT%H:%M:%S")
           setattr(args, self.dest, tmp)
-   parser = argparse.ArgumentParser(description='Prepare HYCOM forcing files')
+   parser = argparse.ArgumentParser(description='Prepare HYCOM forcing files from a set of input files')
    parser.add_argument('--plot_diag', action="store_true")
    parser.add_argument('start_time', action=DateTimeParseAction, help='Start time in UTC zone. Format = YYYY-mm-ddTHH:MM:SS')
    parser.add_argument('end_time',   action=DateTimeParseAction, help='Stop  time in UTC zone. Format = YYYY-mm-ddTHH:MM:SS')
-   parser.add_argument('xml_file',   type=str, help='xml file')
-   parser.add_argument('xml_id',   type=str, help='xml id')
+   parser.add_argument('xml_file',   type=str, help='xml file containing definition of forcing dataset(s)')
+   parser.add_argument('xml_id',   type=str, help='xml id of forcing dataset to use in xml file')
 
    args = parser.parse_args()
 

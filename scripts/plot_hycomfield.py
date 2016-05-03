@@ -7,7 +7,8 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot
 import modeltools.forcing.bathy
-import modeltools.hycom.io
+#import modeltools.hycom.io
+import abfile
 import modeltools.cice.io
 import numpy
 from mpl_toolkits.basemap import Basemap
@@ -37,8 +38,9 @@ if __name__ == "__main__" :
    #grid1=modeltools.grid.Proj4Grid(args.proj4_string,args.ll_lon,args.ll_lat,args.dx,args.dy,
    #      args.nx,args.ny)
 
-   afile = modeltools.hycom.io.AFile(args.idm,args.jdm,args.filename,"r")
-   fld = afile.zaiord_a([],args.record)
+   #afile = modeltools.hycom.io.AFile(args.idm,args.jdm,args.filename,"r")
+   afile = abfile.AFile(args.idm,args.jdm,args.filename,"r")
+   fld = afile.read_record(args.record)
 
    figure = matplotlib.pyplot.figure(figsize=(8,8))
    ax=figure.add_subplot(111)
