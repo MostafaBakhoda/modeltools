@@ -8,6 +8,7 @@ import modeltools.forcing.atmosphere
 import modeltools.tools
 #from mpl_toolkits.basemap import Basemap, shiftgrid
 import logging
+import abfile
 
 
 _loglevel=logging.DEBUG
@@ -37,9 +38,10 @@ def atmfor(start,end,af,grid_file="regional.grid",blkdat_file="blkdat.input",plo
 
    # Open hycom grid file, read longitude and latitude@
    # TODO: HYCOM-specific
-   za = modeltools.hycom.io.ABFileRegionalGrid(grid_file,"r")
-   mlon = za.readfield("plon")
-   mlat = za.readfield("plat")
+   #za = modeltools.hycom.io.ABFileRegionalGrid(grid_file,"r")
+   za = abfile.ABFileGrid(grid_file,"r")
+   mlon = za.read_field("plon")
+   mlat = za.read_field("plat")
    Nx=mlon.shape[1]
    Ny=mlon.shape[0]
    za.close()
@@ -86,7 +88,9 @@ def atmfor(start,end,af,grid_file="regional.grid",blkdat_file="blkdat.input",plo
        if dt == start :
            for k,vname in modeltools.hycom.atmosphere_variable_names.items() :
                if k in af.known_names :
-                   ffiles[k]=modeltools.hycom.io.ABFileForcing("forcing.%s"%vname,"w",idm=Nx, jdm=Ny,
+                   #ffiles[k]=modeltools.hycom.io.ABFileForcing("forcing.%s"%vname,"w",idm=Nx, jdm=Ny,
+                   #                                            cline1="ERA Interim",cline2=vname)
+                   ffiles[k]=abfile.ABFileForcing("forcing.%s"%vname,"w",idm=Nx, jdm=Ny,
                                                                cline1="ERA Interim",cline2=vname)
                    
        # Interpolation of all fields and unit conversion
@@ -123,14 +127,14 @@ def atmfor(start,end,af,grid_file="regional.grid",blkdat_file="blkdat.input",plo
            newdt=af[kn].time
            ord_day,hour,isec=modeltools.hycom.datetime_to_ordinal(newdt,yrflag)
            dtime=modeltools.hycom.dayfor(newdt.year,ord_day,hour,yrflag)
-           ffiles[kn].writefield(newfld[kn],newfld[kn],vname,dtime,af.timestep_in_days)
+           ffiles[kn].write_field(newfld[kn],newfld[kn],vname,dtime,af.timestep_in_days)
 
            # Write diagnostics, if requested
            if plot_diag :
               tmp="forcing.%s."%vname 
               tmp=tmp+"%Y%m%d%H.png"
               tmp=newdt.strftime(tmp)
-              print "plotting %s"%tmp
+              logger.info( "plotting %s"%tmp)
               plot_fig(newfld[kn],newdt,vname,tmp)
 
        # Increase time
