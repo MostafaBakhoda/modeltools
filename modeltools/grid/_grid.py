@@ -26,8 +26,6 @@ class ConformalGrid(Grid) :
 class Proj4Grid(Grid) :
 
    def __init__(self,proj4string,ll_lon,ll_lat,dx,dy,Nx,Ny) :
-
-
       self._proj4string=proj4string
       self._proj=pyproj.Proj(proj4string)
       self._initgrid(ll_lon,ll_lat,dx,dy,Nx,Ny)
@@ -556,4 +554,33 @@ def plotgrid(lon,lat,width=3000000,height=3000000) :
 
    return figure
 
+def create_datadict_hycom(grid) :
+   plon,plat=grid.pgrid()
+   ulon,ulat=grid.ugrid()
+   vlon,vlat=grid.vgrid()
+   qlon,qlat=grid.qgrid()
 
+   datadict = {}
+
+   datadict["plon"]=plon
+   datadict["plat"]=plat
+   datadict["qlon"]=qlon
+   datadict["qlat"]=qlat
+   datadict["ulon"]=ulon
+   datadict["ulat"]=ulat
+   datadict["vlon"]=vlon
+   datadict["vlat"]=vlat
+
+   datadict["pang"]=grid.p_azimuth()
+   datadict["scpx"]=grid.scpx()
+   datadict["scpy"]=grid.scpy()
+   datadict["scqx"]=grid.scqx()
+   datadict["scqy"]=grid.scqy()
+   datadict["scux"]=grid.scux()
+   datadict["scuy"]=grid.scuy()
+   datadict["scvx"]=grid.scvx()
+   datadict["scvy"]=grid.scvy()
+   datadict["cori"]=grid.corio()
+   datadict["pasp"]=grid.aspect_ratio()
+
+   return datadict
