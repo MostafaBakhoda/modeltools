@@ -24,13 +24,14 @@ class BlkdatParser(object) :
    """ Class for doing binary input/output on hycom .a files """
    _integer_fields = [ "iversn","iexpt","idm","jdm","itest","jtest","kdm",
       "nhybrd","nsigma","kapref","thflag","vsigma","iniflg","jerlv0","yrflag",
-      "sshflg","cplifq","incflg","incstp","incupf","hybmap","hybflg","advflg",
-      "advtyp","momtyp","slip","ishelf","ntracr","trcflg","tsofrq","mlflag","pensol",
+      "sshflg","incflg","incstp","incupf","hybmap","hybflg","advflg",
+      "advtyp","momtyp","ishelf","ntracr","trcflg","tsofrq","mlflag","pensol",
       "dypflg","bblkpp","shinst","dbdiff","nonloc","bodiw","difout","difsmo","hblflg",
       "niter","langmr","clmflg","fltflg","nfladv","wndflg","ustflg","flxflg","empflg",
       "dswflg","albflg","sssflg","sstflg","lwflag","icmflg",",slprs","stroff","flxoff",
       "flxsmo","relax","trcrlx","priver","epmass"]
-   _float_fields = []
+   _float_fields = [ "dp00", "dp00x", "dp00f", "ds00", "ds00x", "ds00f", "isotop", "saln0",
+                     "cplifq", "slip"]
       
    def __init__(self,filename) :
 

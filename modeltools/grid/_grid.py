@@ -4,6 +4,7 @@ import pyproj
 import numpy
 import logging
 import re 
+import _grid_confmap
 
 
 # Set up logger
@@ -18,117 +19,37 @@ logger.addHandler(ch)
 logger.propagate=False # Dont propagate to parent in hierarchy (determined by "." in __name__)
 
 class Grid(object) :
-   pass
-
-class ConformalGrid(Grid) :
-   pass
-
-class Proj4Grid(Grid) :
-
-   def __init__(self,proj4string,ll_lon,ll_lat,dx,dy,Nx,Ny) :
-      self._proj4string=proj4string
-      self._proj=pyproj.Proj(proj4string)
-      self._initgrid(ll_lon,ll_lat,dx,dy,Nx,Ny)
+   def _grid(self,deltax,deltay,extended=False) : 
+      raise NotImplementedError,""
 
 
-   def _initgrid(self,ll_lon,ll_lat,dx,dy,Nx,Ny) :
-      self._dx=dx
-      self._dy=dy
-      self._Nx=Nx
-      self._Ny=Ny
-      self._ll_lon=ll_lon
-      self._ll_lat=ll_lat
+   def proj_is_latlong(self) :
+      raise NotImplementedError,""
 
-      # Calculate 0,0 (LL=Lower Left) in projection coordinates. 
-      if self._proj.is_latlong() :
-         self._ll_x,self._ll_y = ll_lon,ll_lat
-      else :
-         self._ll_x,self._ll_y = self._proj(ll_lon,ll_lat)
 
-      # Create grid. This is the P-grid. Note increase of stencil - used to calculate grid sizes
-      self._x=self._ll_x + numpy.linspace(-dx,dx*(Nx),Nx+2)
-      self._y=self._ll_y + numpy.linspace(-dy,dy*(Ny),Ny+2)
-      self._X,self._Y = numpy.meshgrid(self._x,self._y)
-      #print self._X.shape,self._x.shape,self._y.shape
+   def p_azimuth(self) :
+      plon,plat = self.pgrid(extended=True)
+      return fwd_azimuth( plon[1:-1,1:-1],plat[1:-1,1:-1], 
+                          plon[1:-1,2:]   ,plat[1:-1,2:])
+      
+   def corio(self) :
+      qlon,qlat = self.qgrid()
+      return numpy.radians(qlat) * 4. * numpy.pi / 86164.0 # Sidereal day
+      return 
 
-      if self._proj.is_latlong() :
-         tmp= self._X,self._Y
-         #print self._X
-      else :
-         tmp= self._proj(self._X,self._Y,inverse=True)
-      logger.debug("Initialized P-grid using projection %s"%self._proj4string)
-      logger.debug("Lower left corner lon/lat of grid: (%.3g,%.3g)" % (ll_lon,ll_lat))
-      logger.debug("Grid spacing in projection coords: (%.3g,%.3g)" % (self._dx,self._dy))
-      logger.debug("Number of grid Nodes in x/y      : (%5d,%5d)"   % (self._Nx,self._Ny))
 
-      logger.debug("Min   x projection coordinate = %.3g"%self._x.min())
-      logger.debug("Max   x projection coordinate = %.3g"%self._x.max())
-      logger.debug("Min   y projection coordinate = %.3g"%self._y.min())
-      logger.debug("Max   y projection coordinate = %.3g"%self._y.max())
-
-      logger.debug("Min lon = %.3g"%tmp[0].min())
-      logger.debug("Max lon = %.3g"%tmp[0].max())
-      logger.debug("Min lat = %.3g"%tmp[1].min())
-      logger.debug("Max lat = %.3g"%tmp[1].max())
-
-      # Should insist that the ellipse is spherical
-      #if bla bla bla :
-      #   msg = "The geoid used in the projection is not spherical. Aborting"
-      #   logger.error(msg)
-      #   raise ValueError,msg
-
+   def aspect_ratio(self) :
+      scpx=self.scpx()
+      scpy=self.scpy()
+      asp = numpy.where(scpy==0.,99.0,scpx/scpy)
+      return asp
    
-
-   def pgrid(self,extended=False) : return self._grid(0.,0.,extended)
-
-   def ugrid(self,extended=False) : return self._grid(-0.5*self._dx,0.,extended)
-
-   def vgrid(self,extended=False) : return self._grid(0.,-0.5*self._dy,extended)
-
-   def qgrid(self,extended=False) : return self._grid(-0.5*self._dx,-0.5*self._dy,extended)
 
    def cice_ugrid(self,extended=False) :
       # TODO: Check out why its like this ....
       #return self._grid(+0.5*self._dx,+0.5*self._dy,extended)
       return self._grid(-0.5*self._dx,-0.5*self._dy,extended)
       
-      
-   def _grid(self,deltax,deltay,extended=False) : 
-      if extended :
-         tmp = (self._X+deltax,self._Y+deltay)
-         #return self._proj(self._X+deltax,self._Y+deltay,inverse=True)
-      else :
-         #return self._proj(self._X[1:-1,1:-1]-deltax,self._Y[1:-1,1:-1]-deltay,inverse=True)
-         tmp = (self._X[1:-1,1:-1]-deltax,self._Y[1:-1,1:-1]-deltay)
-
-      if self._proj.is_latlong() :
-         return tmp
-      else :
-         return self._proj(*tmp,inverse=True)
-
-   
-   @property
-   def dx(self) : return self._dx
-
-   @property
-   def dy(self) : return self._dy
-   
-   
-   @property
-   def width(self) : 
-      if self._proj.is_latlong() :
-         return self._Nx*self._dx*111000.
-      else :
-         return self._Nx*self._dx
-
-   @property
-   def height(self) :
-      if self._proj.is_latlong() :
-         return self._Ny*self._dy*111000.
-      else :
-         return self._Ny*self._dy
-
-
    @property
    def Nx(self) : return self._Nx
 
@@ -137,6 +58,8 @@ class Proj4Grid(Grid) :
 
    def plotgrid(self,fac=1.) :
       return plotgrid(*self.pgrid(),width=self.width*fac,height=self.height*fac)
+
+      
 
 # --- ------------------------------------------------------------------
 # --- Calc scuy and scvx from qlat, qlon
@@ -263,30 +186,256 @@ class Proj4Grid(Grid) :
       Im1=numpy.s_[:-2]
       return actual_grid_spacing(vlon[J,I],vlat[J,I], vlon[J,Im1],vlat[J,Im1])
 
-
 # --- End of grid-related stuff
 
-   def p_azimuth(self) :
-      plon,plat = self.pgrid(extended=True)
-      #print "1",fwd_azimuth( 0, 0,10,0)
-      #print "2",fwd_azimuth( 0, 0,0,10)
-      #return fwd_azimuth( plon[1:-1,1:-1],plat[1:-1,1:-1], 
-      #                    plon[2:,1:-1]   ,plat[2:,1:-1])
-      return fwd_azimuth( plon[1:-1,1:-1],plat[1:-1,1:-1], 
-                          plon[1:-1,2:]   ,plat[1:-1,2:])
+   def save_to_scrip(self,filename,mask=None) :
+      import matplotlib
+      #import scipy.io.netcdf
+      import netCDF4
+      #nc = scipy.io.netcdf.netcdf_file("tst.nc","w")
+      nc = netCDF4.Dataset(filename,"w")
+      plon,plat=self.pgrid(extended=False)
+      qlon,qlat=self.qgrid(extended=True)
+
+      nc.createDimension("grid_size",plon.size)
+      nc.createDimension("grid_corners",4)
+      nc.createDimension("grid_rank",2)
+
+      nc.createVariable("grid_dims","i8",("grid_rank",))
+      nc.createVariable("grid_center_lon","d",("grid_size",))
+      nc.createVariable("grid_center_lat","d",("grid_size",))
+      nc.createVariable("grid_imask","i8",("grid_size",))
+      nc.createVariable("grid_corner_lon","d",("grid_size","grid_corners",))
+      nc.createVariable("grid_corner_lat","d",("grid_size","grid_corners",))
+
+      nc["grid_center_lon"].setncattr("units","degrees")
+      nc["grid_corner_lon"].setncattr("units","degrees")
+      nc["grid_center_lat"].setncattr("units","degrees")
+      nc["grid_corner_lat"].setncattr("units","degrees")
+
+      nc["grid_center_lon"][:]=plon.flatten()
+      nc["grid_center_lat"][:]=plat.flatten()
+
+      nc["grid_dims"][0]=plon.shape[1]
+      nc["grid_dims"][1]=plon.shape[0]
+
+      if mask is None :
+         nc["grid_imask"][:]=1
+      else :
+         nc["grid_imask"][:]=mask[:]
+
+
+      nc["grid_corner_lon"][:,0]=qlon[1:-1,1:-1].flatten()
+      nc["grid_corner_lon"][:,1]=qlon[1:-1,2:  ].flatten()
+      nc["grid_corner_lon"][:,2]=qlon[2:  ,2:  ].flatten()
+      nc["grid_corner_lon"][:,3]=qlon[2:  ,1:-1].flatten()
+
+      nc["grid_corner_lat"][:,0]=qlat[1:-1,1:-1].flatten()
+      nc["grid_corner_lat"][:,1]=qlat[1:-1,2:  ].flatten()
+      nc["grid_corner_lat"][:,2]=qlat[2:  ,2:  ].flatten()
+      nc["grid_corner_lat"][:,3]=qlat[2:  ,1:-1].flatten()
+
+
+      itest=0
+      #print nc["grid_center_lon"][itest]
+      #print nc["grid_corner_lon"][itest]
+      #print nc["grid_center_lat"][itest]
+      #print nc["grid_corner_lat"][itest]
+      figure = matplotlib.pyplot.figure(figsize=(8,8))
+      ax=figure.add_subplot(111)
+      ax.hold(True)
+      ax.set_xlim(numpy.amin(nc["grid_corner_lon"][itest,:])-.1,numpy.amax(nc["grid_corner_lon"][itest,:])+.1)
+      ax.set_ylim(numpy.amin(nc["grid_corner_lat"][itest,:])-.1,numpy.amax(nc["grid_corner_lat"][itest,:])+.1)
+      for i in range(4) :
+         x=nc["grid_corner_lon"][itest,i]
+         y=nc["grid_corner_lat"][itest,i]
+         dx=nc["grid_corner_lon"][itest,(i+1)%4]-nc["grid_corner_lon"][itest,i]
+         dy=nc["grid_corner_lat"][itest,(i+1)%4]-nc["grid_corner_lat"][itest,i]
+         ax.plot([x,x+dx],[y,y+dy],color=".5",lw=3)
+         ax.plot(x,y,"*",label="corner " + str(i),markersize=20)
+      ax.plot(nc["grid_center_lon"][itest],nc["grid_center_lat"][itest],"s",label="center")
+      ax.legend()
+
+
+      nc.close()
+
+   def create_datadict_hycom(self) :
+      """ Used when writing regional.grid files for hycom"""
+      plon,plat=self.pgrid()
+      ulon,ulat=self.ugrid()
+      vlon,vlat=self.vgrid()
+      qlon,qlat=self.qgrid()
+      datadict = {}
+      datadict["plon"]=plon
+      datadict["plat"]=plat
+      datadict["qlon"]=qlon
+      datadict["qlat"]=qlat
+      datadict["ulon"]=ulon
+      datadict["ulat"]=ulat
+      datadict["vlon"]=vlon
+      datadict["vlat"]=vlat
+      datadict["pang"]=self.p_azimuth()
+      datadict["scpx"]=self.scpx()
+      datadict["scpy"]=self.scpy()
+      datadict["scqx"]=self.scqx()
+      datadict["scqy"]=self.scqy()
+      datadict["scux"]=self.scux()
+      datadict["scuy"]=self.scuy()
+      datadict["scvx"]=self.scvx()
+      datadict["scvy"]=self.scvy()
+      datadict["cori"]=self.corio()
+      datadict["pasp"]=self.aspect_ratio()
+      return datadict
+
+   
+   @property
+   def width(self) : 
+      if self.proj_is_latlong() :
+         return self._Nx*self.dx*111000.
+      else :
+         return self._Nx*self.dx
+
+   @property
+   def height(self) :
+      if self.proj_is_latlong() :
+         return self._Ny*self.dy*111000.
+      else :
+         return self._Ny*self.dy
+
+
+class ConformalGrid(Grid) :
+   """ Grid generator based on Bentsen et al conformal mapping """
+   def __init__(self,
+         lat_a,lon_a,lat_b,lon_b,
+         wlim,elim,ires,
+         slim,nlim,jres,
+         mercator,
+         mercfac,lold) :
+
+      self._Nx = ires
+      self._Ny = jres
+
+      self._conformal_mapping = _grid_confmap.ConformalMapping(
+         lat_a,lon_a,lat_b,lon_b,
+         wlim,elim,ires,
+         slim,nlim,jres,
+         mercator,
+         mercfac,lold) 
+
+
 
       
-   def corio(self) :
-      qlon,qlat = self.qgrid()
-      return numpy.radians(qlat) * 4. * numpy.pi / 86164.0 # Sidereal day
-      return 
+   def _grid(self,deltax,deltay,extended=False) : 
+      tmp= self._conformal_mapping.get_grid(shifti=deltax,shiftj=deltay,extended=extended)
+
+      # Order reversed
+      return tmp[1],tmp[0]
 
 
-   def aspect_ratio(self) :
-      scpx=self.scpx()
-      scpy=self.scpy()
-      asp = numpy.where(scpy==0.,99.0,scpx/scpy)
-      return asp
+   # Shift is shift in new coordinate spacing
+   def pgrid(self,extended=False) : return self._grid(0.,0.,extended)
+   def ugrid(self,extended=False) : return self._grid(-0.5,0.,extended)
+   def vgrid(self,extended=False) : return self._grid(0.,-0.5,extended)
+   def qgrid(self,extended=False) : return self._grid(-0.5,-0.5,extended)
+   
+   
+
+   @property
+   def dx(self) : 
+      return numpy.median(self.scpx())
+
+   @property
+   def dy(self) : 
+      return numpy.median(self.scpy())
+   
+   
+   def proj_is_latlong(self) :
+      return False
+
+
+class Proj4Grid(Grid) :
+   """ Grid generator based on proj4 projections """
+
+   def __init__(self,proj4string,ll_lon,ll_lat,dx,dy,Nx,Ny) :
+      self._proj4string=proj4string
+      self._proj=pyproj.Proj(proj4string)
+      self._initgrid(ll_lon,ll_lat,dx,dy,Nx,Ny)
+
+
+   def _initgrid(self,ll_lon,ll_lat,dx,dy,Nx,Ny) :
+      self._dx=dx
+      self._dy=dy
+      self._Nx=Nx
+      self._Ny=Ny
+      self._ll_lon=ll_lon
+      self._ll_lat=ll_lat
+
+      # Calculate 0,0 (LL=Lower Left) in projection coordinates. 
+      if self.proj_is_latlong() :
+         self._ll_x,self._ll_y = ll_lon,ll_lat
+      else :
+         self._ll_x,self._ll_y = self._proj(ll_lon,ll_lat)
+
+      # Create grid. This is the P-grid. Note increase of stencil - used to calculate grid sizes
+      self._x=self._ll_x + numpy.linspace(-dx,dx*(Nx),Nx+2)
+      self._y=self._ll_y + numpy.linspace(-dy,dy*(Ny),Ny+2)
+      self._X,self._Y = numpy.meshgrid(self._x,self._y)
+      #print self._X.shape,self._x.shape,self._y.shape
+
+      if self.proj_is_latlong() :
+         tmp= self._X,self._Y
+         #print self._X
+      else :
+         tmp= self._proj(self._X,self._Y,inverse=True)
+      logger.debug("Initialized P-grid using projection %s"%self._proj4string)
+      logger.debug("Lower left corner lon/lat of grid: (%.3g,%.3g)" % (ll_lon,ll_lat))
+      logger.debug("Grid spacing in projection coords: (%.3g,%.3g)" % (self._dx,self._dy))
+      logger.debug("Number of grid Nodes in x/y      : (%5d,%5d)"   % (self._Nx,self._Ny))
+
+      logger.debug("Min   x projection coordinate = %.3g"%self._x.min())
+      logger.debug("Max   x projection coordinate = %.3g"%self._x.max())
+      logger.debug("Min   y projection coordinate = %.3g"%self._y.min())
+      logger.debug("Max   y projection coordinate = %.3g"%self._y.max())
+
+      logger.debug("Min lon = %.3g"%tmp[0].min())
+      logger.debug("Max lon = %.3g"%tmp[0].max())
+      logger.debug("Min lat = %.3g"%tmp[1].min())
+      logger.debug("Max lat = %.3g"%tmp[1].max())
+
+      # Should insist that the ellipse is spherical
+      #if bla bla bla :
+      #   msg = "The geoid used in the projection is not spherical. Aborting"
+      #   logger.error(msg)
+      #   raise ValueError,msg
+
+   def _grid(self,deltax,deltay,extended=False) : 
+      if extended :
+         tmp = (self._X+deltax,self._Y+deltay)
+         #return self._proj(self._X+deltax,self._Y+deltay,inverse=True)
+      else :
+         #return self._proj(self._X[1:-1,1:-1]-deltax,self._Y[1:-1,1:-1]-deltay,inverse=True)
+         tmp = (self._X[1:-1,1:-1]-deltax,self._Y[1:-1,1:-1]-deltay)
+
+      if self.proj_is_latlong() :
+         return tmp
+      else :
+         return self._proj(*tmp,inverse=True)
+
+   # Shift is shift in model projection
+   def pgrid(self,extended=False) : return self._grid(0.,0.,extended)
+   def ugrid(self,extended=False) : return self._grid(-0.5*self._dx,0.,extended)
+   def vgrid(self,extended=False) : return self._grid(0.,-0.5*self._dy,extended)
+   def qgrid(self,extended=False) : return self._grid(-0.5*self._dx,-0.5*self._dy,extended)
+   
+   @property
+   def dx(self) : return self._dx
+
+   @property
+   def dy(self) : return self._dy
+   
+
+   def proj_is_latlong(self) :
+      return self.proj_is_latlong() 
 
 
    def write_my_projection_info(self) :
@@ -401,80 +550,6 @@ class Proj4Grid(Grid) :
       pass
 
 
-   def save_to_scrip(self,filename,mask=None) :
-      import matplotlib
-      #import scipy.io.netcdf
-      import netCDF4
-      #nc = scipy.io.netcdf.netcdf_file("tst.nc","w")
-      nc = netCDF4.Dataset(filename,"w")
-      plon,plat=self.pgrid(extended=False)
-      qlon,qlat=self.qgrid(extended=True)
-
-      nc.createDimension("grid_size",plon.size)
-      nc.createDimension("grid_corners",4)
-      nc.createDimension("grid_rank",2)
-
-      nc.createVariable("grid_dims","i8",("grid_rank",))
-      nc.createVariable("grid_center_lon","d",("grid_size",))
-      nc.createVariable("grid_center_lat","d",("grid_size",))
-      nc.createVariable("grid_imask","i8",("grid_size",))
-      nc.createVariable("grid_corner_lon","d",("grid_size","grid_corners",))
-      nc.createVariable("grid_corner_lat","d",("grid_size","grid_corners",))
-
-
-
-      nc["grid_center_lon"].setncattr("units","degrees")
-      nc["grid_corner_lon"].setncattr("units","degrees")
-      nc["grid_center_lat"].setncattr("units","degrees")
-      nc["grid_corner_lat"].setncattr("units","degrees")
-
-      nc["grid_center_lon"][:]=plon.flatten()
-      nc["grid_center_lat"][:]=plat.flatten()
-
-      nc["grid_dims"][0]=plon.shape[1]
-      nc["grid_dims"][1]=plon.shape[0]
-
-
-
-      if mask is None :
-         nc["grid_imask"][:]=1
-      else :
-         nc["grid_imask"][:]=mask[:]
-
-
-      nc["grid_corner_lon"][:,0]=qlon[1:-1,1:-1].flatten()
-      nc["grid_corner_lon"][:,1]=qlon[1:-1,2:  ].flatten()
-      nc["grid_corner_lon"][:,2]=qlon[2:  ,2:  ].flatten()
-      nc["grid_corner_lon"][:,3]=qlon[2:  ,1:-1].flatten()
-
-      nc["grid_corner_lat"][:,0]=qlat[1:-1,1:-1].flatten()
-      nc["grid_corner_lat"][:,1]=qlat[1:-1,2:  ].flatten()
-      nc["grid_corner_lat"][:,2]=qlat[2:  ,2:  ].flatten()
-      nc["grid_corner_lat"][:,3]=qlat[2:  ,1:-1].flatten()
-
-
-      itest=0
-      #print nc["grid_center_lon"][itest]
-      #print nc["grid_corner_lon"][itest]
-      #print nc["grid_center_lat"][itest]
-      #print nc["grid_corner_lat"][itest]
-      figure = matplotlib.pyplot.figure(figsize=(8,8))
-      ax=figure.add_subplot(111)
-      ax.hold(True)
-      ax.set_xlim(numpy.amin(nc["grid_corner_lon"][itest,:])-.1,numpy.amax(nc["grid_corner_lon"][itest,:])+.1)
-      ax.set_ylim(numpy.amin(nc["grid_corner_lat"][itest,:])-.1,numpy.amax(nc["grid_corner_lat"][itest,:])+.1)
-      for i in range(4) :
-         x=nc["grid_corner_lon"][itest,i]
-         y=nc["grid_corner_lat"][itest,i]
-         dx=nc["grid_corner_lon"][itest,(i+1)%4]-nc["grid_corner_lon"][itest,i]
-         dy=nc["grid_corner_lat"][itest,(i+1)%4]-nc["grid_corner_lat"][itest,i]
-         ax.plot([x,x+dx],[y,y+dy],color=".5",lw=3)
-         ax.plot(x,y,"*",label="corner " + str(i),markersize=20)
-      ax.plot(nc["grid_center_lon"][itest],nc["grid_center_lat"][itest],"s",label="center")
-      ax.legend()
-
-
-      nc.close()
 
 
 
@@ -497,6 +572,7 @@ def fwd_azimuth(lon1,lat1,lon2,lat2) :
 
 def plotgrid(lon,lat,width=3000000,height=3000000) :
    import matplotlib
+   import matplotlib.pyplot
    from matplotlib.figure import Figure
    from matplotlib.backends.backend_agg import FigureCanvasAgg
    from mpl_toolkits.basemap import Basemap
@@ -554,33 +630,4 @@ def plotgrid(lon,lat,width=3000000,height=3000000) :
 
    return figure
 
-def create_datadict_hycom(grid) :
-   plon,plat=grid.pgrid()
-   ulon,ulat=grid.ugrid()
-   vlon,vlat=grid.vgrid()
-   qlon,qlat=grid.qgrid()
 
-   datadict = {}
-
-   datadict["plon"]=plon
-   datadict["plat"]=plat
-   datadict["qlon"]=qlon
-   datadict["qlat"]=qlat
-   datadict["ulon"]=ulon
-   datadict["ulat"]=ulat
-   datadict["vlon"]=vlon
-   datadict["vlat"]=vlat
-
-   datadict["pang"]=grid.p_azimuth()
-   datadict["scpx"]=grid.scpx()
-   datadict["scpy"]=grid.scpy()
-   datadict["scqx"]=grid.scqx()
-   datadict["scqy"]=grid.scqy()
-   datadict["scux"]=grid.scux()
-   datadict["scuy"]=grid.scuy()
-   datadict["scvx"]=grid.scvx()
-   datadict["scvy"]=grid.scvy()
-   datadict["cori"]=grid.corio()
-   datadict["pasp"]=grid.aspect_ratio()
-
-   return datadict
