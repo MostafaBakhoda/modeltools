@@ -154,6 +154,47 @@ class FieldInterpolatorRectBivariateSpline(FieldInterpolator)  :
       return self._intobj(self._targetx,self._targety,grid=False)
 
 
+def extrapolate_data(infld,method) :
+   outfld=numpy.ma.MaskedArray.copy(infld)
+   mask=numpy.copy(outfld.mask)
+
+   # Find points that are defined, and has undefined neighbours
+   #logger.info("1")
+   tmp=numpy.zeros(outfld.shape)
+   tmp[1:-1,1:-1] = tmp[1:-1,1:-1] + mask[1:-1,0:-2]
+   tmp[1:-1,1:-1] = tmp[1:-1,1:-1] + mask[1:-1,2:]
+   tmp[1:-1,1:-1] = tmp[1:-1,1:-1] + mask[0:-2,1:-1]
+   tmp[1:-1,1:-1] = tmp[1:-1,1:-1] + mask[2:,1:-1]
+   #logger.debug("unmask_data 2")
+   tmp1=numpy.where(tmp>=1,True,False)              # More than one undefined neighbour
+   tmp2=numpy.where(mask,False,True)                # Ocean point (mask=True is land)
+   I,J=numpy.where(numpy.logical_and(tmp1,tmp2))    # Combination
+   #logger.debug("unmask_data 3")
+
+   # Found no points , return unmodified field
+   #print len(I)
+   if len(I) == 0  :
+      pass
+   else :
+      gd=outfld[I,J]                                   # Points input to griddata
+      # diag
+      #tmp=numpy.zeros(outfld.shape)
+      #tmp[I,J]=gd
+      #plot_test(tmp,"s_coast.png")
+      # Interpolate using griddata
+      #logger.debug("unmask_data 3.1")
+      grid_x,grid_y=numpy.meshgrid(range(tmp1.shape[0]),range(tmp1.shape[1]))
+      #logger.debug("unmask_data 3.2")
+      new = scipy.interpolate.griddata((I,J,),gd,(grid_x.transpose(),grid_y.transpose()),method)
+      #logger.debug("unmask_data 3.3")
+      outfld[outfld.mask] = new[outfld.mask]
+      #plot_test(infld,"s_out.png")
+      #plot_test(new,"s_griddata.png")
+      #plot_test(outfld,"s_final.png")
+   #logger.debug("unmask_data 4")
+   outfld=numpy.ma.masked_invalid(outfld)
+   return outfld
+
 
 
 
