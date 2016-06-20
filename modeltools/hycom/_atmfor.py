@@ -34,7 +34,20 @@ def plot_fig(fld,dt,varname,filename) :
    ax.set_title("%s at %s"%(varname,str(dt)))
    canvas.print_figure(filename)
 
-def atmfor(start,end,af,grid_file="regional.grid",blkdat_file="blkdat.input",plot_diag=False) :
+def atmfor(start,end,af,grid_file="regional.grid",blkdat_file="blkdat.input",plot_diag=False,
+      old_forcing=False) :
+
+   if old_forcing :
+      logger.info("Using old NERSC-HYCOM forcing fields")
+      
+      # Modify names used by hycom
+      modeltools.hycom.atmosphere_variable_names["10u"] = "uwind"
+      modeltools.hycom.atmosphere_variable_names["10v"] = "vwind"
+      modeltools.hycom.atmosphere_variable_names["msl"] = "slp"
+
+      # Output units needed
+      modeltools.hycom.atmosphere_variable_units["msl"] = "hPa"
+
 
    # Open hycom grid file, read longitude and latitude@
    # TODO: HYCOM-specific
@@ -64,9 +77,6 @@ def atmfor(start,end,af,grid_file="regional.grid",blkdat_file="blkdat.input",plo
        # Read variables
        af.get_timestep(dt)
 
-       print "msl shape",af["msl"].data.shape
-       print "2d.shape ",af["2d"].data.shape
-
        # Estimate dependent variable on native grid
        # radflx is downwelling longwave radiation
        # TODO: HYCOM-specific
@@ -74,24 +84,31 @@ def atmfor(start,end,af,grid_file="regional.grid",blkdat_file="blkdat.input",plo
            af.calculate_windstress()
            af.calculate_windspeed()
            af.calculate_ustar()
-       
-       if "vapmix" not in af.known_names_explicit : af.calculate_vapmix()
-       if "ssrd"   not in af.known_names_explicit : af.calculate_ssrd()
-       if lwflag == -1 :
-           if "strd"   not in af.known_names_explicit : af.calculate_strd()
+
+
+       #  Forcing used by old NERSC-HYCOM
+       if old_forcing :
+          if "relhum" not in af.known_names_explicit : af.calculate_relhum()
+
+       #  Forcing used by new coupled version.
        else :
-           raise ValueError,"TODO: lwflag<>-1 not supported"
+          if "vapmix" not in af.known_names_explicit : af.calculate_vapmix()
+          if "ssrd"   not in af.known_names_explicit : af.calculate_ssrd()
+          if lwflag == -1 :
+              if "strd"   not in af.known_names_explicit : af.calculate_strd()
+          else :
+              raise ValueError,"TODO: lwflag<>-1 not supported"
 
        # Open output files. Dict uses "known name" when mapping to file object
        # TODO: HYCOM-specific
-       print modeltools.hycom.atmosphere_variable_names.keys()
        if dt == start :
            for k,vname in modeltools.hycom.atmosphere_variable_names.items() :
+               print k,vname
                if k in af.known_names :
-                   #ffiles[k]=modeltools.hycom.io.ABFileForcing("forcing.%s"%vname,"w",idm=Nx, jdm=Ny,
-                   #                                            cline1="ERA Interim",cline2=vname)
-                   ffiles[k]=abfile.ABFileForcing("forcing.%s"%vname,"w",idm=Nx, jdm=Ny,
+                  ffiles[k]=abfile.ABFileForcing("forcing.%s"%vname,"w",idm=Nx, jdm=Ny,
                                                                cline1="ERA Interim",cline2=vname)
+
+
                    
        # Interpolation of all fields and unit conversion
        newfld={}

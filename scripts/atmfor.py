@@ -10,6 +10,7 @@ if __name__ == "__main__" :
           setattr(args, self.dest, tmp)
    parser = argparse.ArgumentParser(description='Prepare HYCOM forcing files from a set of input files')
    parser.add_argument('--plot_diag', action="store_true")
+   parser.add_argument('--old_forcing', action="store_true")
    parser.add_argument('start_time', action=DateTimeParseAction, help='Start time in UTC zone. Format = YYYY-mm-ddTHH:MM:SS')
    parser.add_argument('end_time',   action=DateTimeParseAction, help='Stop  time in UTC zone. Format = YYYY-mm-ddTHH:MM:SS')
    parser.add_argument('xml_file',   type=str, help='xml file containing definition of forcing dataset(s)')
@@ -23,4 +24,4 @@ if __name__ == "__main__" :
 
 
 
-   modeltools.hycom.atmfor(args.start_time,args.end_time,af,plot_diag=args.plot_diag)#,gridfile="regional.grid",blkdat_file="blkdat.input")
+   modeltools.hycom.atmfor(args.start_time,args.end_time,af,plot_diag=args.plot_diag,old_forcing=args.old_forcing)#,gridfile="regional.grid",blkdat_file="blkdat.input")

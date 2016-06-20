@@ -1,11 +1,11 @@
 #!/usr/bin/env python
-import modeltools.grid
+import modelgrid
 import numpy
 import abfile
 
 def main() :
    print "ok"
-   cg = modeltools.grid.ConformalMapping(
+   cg = modelgrid.ConformalMapping(
       -40.,140.,
       -50.,140.,
       178.2,181.42,800,
@@ -24,7 +24,7 @@ def main() :
    #print lo,la
 
 
-   tmp =  modeltools.grid.ConformalGrid(
+   tmp =  modelgrid.ConformalGrid(
       -40.,140.,
       -50.,140.,
       178.2,181.42,1000,

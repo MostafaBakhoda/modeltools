@@ -27,98 +27,6 @@ logger.addHandler(ch)
 logger.propagate=False
 
 
-#class Sigma(object) :
-#
-#   DTHIRD=1.0/3.0
-#
-#
-#   def __init__(self,flag) :
-## --- coefficients for sigma-0 (based on Brydon & Sun fit)
-#      self._sigma=flag
-#      if flag == 0 :
-#         self.C1=-1.36471E-01
-#         self.C2= 4.68181E-02
-#         self.C3= 8.07004E-01
-#         self.C4=-7.45353E-03
-#         self.C5=-2.94418E-03
-#         self.C6= 3.43570E-05
-#         self.C7= 3.48658E-05
-#      elif flag == 2 :
-#         self.C1=-1.36471E-01
-#         self.C2= 4.68181E-02
-#         self.C3= 8.07004E-01
-#         self.C4=-7.45353E-03
-#         self.C5=-2.94418E-03,
-#         self.C6= 3.43570E-05
-#         self.C7= 3.48658E-05
-#      else :
-#         raise ValueError,"flag<>0 not implemented"
-#
-#   def A0(self,S) :
-#      return (self.C1+self.C3*S)/self.C6
-#
-#   def A1(self,S) :
-#      return (self.C2+self.C5*S)/self.C6
-#
-#   def A2(self,S) : 
-#      return (self.C4+self.C7*S)/self.C6
-#
-#   def CUBQ(self,S) :
-#      return self.DTHIRD*A1(S)-(self.DTHIRD*A2(S))**2
-#
-#   def CUBR(self,R,S) :
-#      return self.DTHIRD*(0.50*A1(S)*A2(S)-1.50*(A0(S)-R/self.C6)) -(self.DTHIRD*A2(S))**3
-#
-#   def CUBAN(self,R,S) :
-#      return self.DTHIRD*ATAN2(SQRT(MAX(DZERO,-(self.CUBQ(S)**3+CUBR(R,S)**2))),CUBR(R,S))
-#
-#   def CUBRL(self,R,S) :
-#      return SQRT(-self.CUBQ(S))*COS(self.CUBAN(R,S))
-#
-#   def CUBIM(self,R,S) :
-#      return SQRT(-self.CUBQ(S))*SIN(self.CUBAN(R,S))
-#
-## --- temp (deg c) as a function of sigma and salinity (mil)
-#   def TOFSIG(self,R,S) :
-#      return -self.CUBRL(R,S)+SQRT(3.)*self.CUBIM(R,S)-self.DTHIRD*self.A2(S)
-#
-## --- salinity (mil) as a function of sigma and temperature (deg c)
-#   def SOFSIG(self,R,T) :
-#      return (R-self.C1-T*(self.C2+T*(self.C4+self.C6*T)))/(self.C3+T*(self.C5+self.C7*T))
-#
-## --- sigma-theta as a function of temp (deg c) and salinity (mil)
-## --- (friedrich-levitus 3rd degree polynomial fit)
-#   def SIG(self,T,S) :
-#      return (self.C1+self.C3*S+T*(self.C2+self.C5*S+T*(self.C4+self.C7*S+self.C6*T)))
-#
-## --- auxiliary statements for finding root of 3rd degree polynomial
-##     A0(S)=(C1+C3*S)/C6
-##     A1(S)=(C2+C5*S)/C6
-##     A2(S)=(C4+C7*S)/C6
-##     CUBQ(S)=DTHIRD*A1(S)-(DTHIRD*A2(S))**2
-##     CUBR(R,S)=DTHIRD*(0.5D0*A1(S)*A2(S)-1.5D0*(A0(S)-R/C6))
-##    .   -(DTHIRD*A2(S))**3
-## --- if q**3+r**2>0, water is too dense to yield real root at given
-## --- salinitiy. setting q**3+r**2=0 in that case is equivalent to
-## --- lowering sigma until a double real root is obtained.
-##     CUBAN(R,S)=DTHIRD*ATAN2(SQRT(MAX(DZERO,
-##    .   -(CUBQ(S)**3+CUBR(R,S)**2))),CUBR(R,S))
-##     CUBRL(R,S)=SQRT(-CUBQ(S))*COS(CUBAN(R,S))
-##     CUBIM(R,S)=SQRT(-CUBQ(S))*SIN(CUBAN(R,S))
-##
-## --- temp (deg c) as a function of sigma and salinity (mil)
-##     TOFSIG(R,S)=-CUBRL(R,S)+SQRT(3.)*CUBIM(R,S)-DTHIRD*A2(S)
-##
-## --- salinity (mil) as a function of sigma and temperature (deg c)
-##     SOFSIG(R,T)=(R-C1-T*(C2+T*(C4+C6*T)))/(C3+T*(C5+C7*T))
-##
-## --- sigma-theta as a function of temp (deg c) and salinity (mil)
-## --- (friedrich-levitus 3rd degree polynomial fit)
-##     SIG(T,S)=(C1+C3*S+T*(C2+C5*S+T*(C4+C7*S+C6*T)))
-#
-#   @property
-#   def sigma(self) : return self._sigma
-
 def plot_test(fld,filename) :
    figure = matplotlib.pyplot.figure(figsize=(8,8))
    ax=figure.add_subplot(111)
@@ -130,53 +38,19 @@ def plot_test(fld,filename) :
 
 
 
-#def unmask_data(infld,method) :
-#   outfld=numpy.ma.MaskedArray.copy(infld)
-#   mask=numpy.copy(outfld.mask)
-#   # Find points that are defined, and has undefined neighbours
-#   #logger.info("1")
-#   tmp=numpy.zeros(outfld.shape)
-#   tmp[1:-1,1:-1] = tmp[1:-1,1:-1] + mask[1:-1,0:-2]
-#   tmp[1:-1,1:-1] = tmp[1:-1,1:-1] + mask[1:-1,2:]
-#   tmp[1:-1,1:-1] = tmp[1:-1,1:-1] + mask[0:-2,1:-1]
-#   tmp[1:-1,1:-1] = tmp[1:-1,1:-1] + mask[2:,1:-1]
-#   #logger.debug("unmask_data 2")
-#   tmp1=numpy.where(tmp>=1,True,False)              # More than one undefined neighbour
-#   tmp2=numpy.where(mask,False,True)                # Ocean point (mask=True is land)
-#   I,J=numpy.where(numpy.logical_and(tmp1,tmp2))    # Combination
-#   #logger.debug("unmask_data 3")
-#   # Found no points , return unmodified field
-#   #print len(I)
-#   if len(I) == 0  :
-#      pass
-#   else :
-#      gd=outfld[I,J]                                   # Points input to griddata
-#      # diag
-#      #tmp=numpy.zeros(outfld.shape)
-#      #tmp[I,J]=gd
-#      #plot_test(tmp,"s_coast.png")
-#      # Interpolate using griddata
-#      #logger.debug("unmask_data 3.1")
-#      grid_x,grid_y=numpy.meshgrid(range(tmp1.shape[0]),range(tmp1.shape[1]))
-#      #logger.debug("unmask_data 3.2")
-#      new = scipy.interpolate.griddata((I,J,),gd,(grid_x.transpose(),grid_y.transpose()),method)
-#      #logger.debug("unmask_data 3.3")
-#      outfld[outfld.mask] = new[outfld.mask]
-#      #plot_test(infld,"s_out.png")
-#      #plot_test(new,"s_griddata.png")
-#      #plot_test(outfld,"s_final.png")
-#   #logger.debug("unmask_data 4")
-#   outfld=numpy.ma.masked_invalid(outfld)
-#   return outfld
 
-
-def main(path) :
-   print path
+def main(path,sigma,months,resolution) :
+   logger.info("Path=%s"%path)
    dump_netcdf=True
+   if months :
+      months = [elem-1 for elem in months]
+   else :
+      months = range(12) 
 
-
-   fnametemplate="woa13_decav_%s%02d_04v2.nc" # 0.25 degrees
-   #fnametemplate="woa13_decav_%s%02d_01v2.nc" # 1.00 degrees
+   if resolution == 0.25 :
+      fnametemplate="woa13_decav_%s%02d_04v2.nc" # 0.25 degrees
+   else :
+      fnametemplate="woa13_decav_%s%02d_01v2.nc" # 1.00 degrees
 
 
    # Open seasonal files
@@ -209,7 +83,7 @@ def main(path) :
    lat_bnds = ncid["month"]["s"][0].variables["lat_bnds"][:]
    lon=ncid["month"]["s"][0].variables["lon"][:]
    lat=ncid["month"]["s"][0].variables["lat"][:]
-   depth=ncid["season"]["s"][0].variables["depth"][:]
+   depths=ncid["season"]["s"][0].variables["depth"][:]
    nlon=lon.size
    nlat=lat.size
 
@@ -244,7 +118,7 @@ def main(path) :
                logger.error("latitudes differ between files")
 
 
-   sig = modeltools.hycom.Sigma(0)
+   sig = modeltools.hycom.Sigma(sigma)
 
    kkseason = ncid["season"]["s"][0].variables["s_an"].shape[1]
    kkmonth  = ncid["month"]["s"][0].variables["s_an"].shape[1]
@@ -287,7 +161,12 @@ def main(path) :
 
 
    # Loop over months
-   for month in range(12) :
+   for month in months :
+   
+      # Open output files
+      f_saln = open("s_m%02d.d"%(month+1),"w")
+      f_temp = open("t_m%02d.d"%(month+1),"w")
+      f_dens = open("r_m%02d.d"%(month+1),"w")
 
       if dump_netcdf :
          fname_out_nc = "extrapolated_WOA2013_m%02d.nc"%(month + 1)
@@ -306,11 +185,6 @@ def main(path) :
          ds_out.variables["lat"][:]=lat
          ds_out.variables["lon"][:]=lon
          ds_out.variables["depth"][:]=ncid["season"]["s"][0].variables["depth"][:]
-   
-      # Open output files
-      f_saln = open("s_m%02d.d"%(month+1),"w")
-      f_temp = open("t_m%02d.d"%(month+1),"w")
-      f_dens = open("r_m%02d.d"%(month+1),"w")
 
       # season index and weights. Hardcoded, but possible to estimate from clim_bnds - file 1 is Jan, Feb, March, File 2 is April, MAy, June, etc...
       i0,i1,w0,w1 = month_weights(month+1) 
@@ -328,14 +202,14 @@ def main(path) :
       fortran_write_title(f_temp,ttitle)
       fortran_write_title(f_dens,rtitle)
 
-      fortran_write_header(f_saln,nlon,nlat,lon[0],lat[0],dlon,dlat,depth)
-      fortran_write_header(f_temp,nlon,nlat,lon[0],lat[0],dlon,dlat,depth)
-      fortran_write_header(f_dens,nlon,nlat,lon[0],lat[0],dlon,dlat,depth)
+      fortran_write_header(f_saln,nlon,nlat,lon[0],lat[0],dlon,dlat,depths)
+      fortran_write_header(f_temp,nlon,nlat,lon[0],lat[0],dlon,dlat,depths)
+      fortran_write_header(f_dens,nlon,nlat,lon[0],lat[0],dlon,dlat,depths)
 
       #raise NameError,"tes"
 
 
-      logger.info("month = %2d/%2d, i0=%d, i1=%d, w0=%6.2f, w1=%6.2f"%(month,12,i0,i1,w0,w1))
+      logger.info("month = %2d/%2d, i0=%d, i1=%d, w0=%6.2f, w1=%6.2f"%(month+1,12,i0,i1,w0,w1))
       first=True
       d_over = numpy.zeros((nlat,nlon,))
       t_over = numpy.zeros((nlat,nlon,))
@@ -372,7 +246,7 @@ def main(path) :
             ds_out.variables["temperature"][k,:,:] = t_out
 
 
-         logger.info("%s file, level %3d/%3d, depth=%5.0f"%(myfile, k,kkseason,depth))
+         logger.info("%s file, level %3d/%3d, depth=%5.0f"%(myfile, k+1,kkseason,depth))
          # unmask using nearest neighbour for surface, linear deeper (faster). Since this is a one time job we do the slow stuff
          if first :
             method="nearest"
@@ -452,9 +326,11 @@ def main(path) :
 
 if __name__ == "__main__" :
    parser = argparse.ArgumentParser(description='')
-   parser.add_argument('path')
-   parser.add_argument('sigma',type=int)
+   parser.add_argument('--resolution',type=float,help="Resolution of netcdf files",default=0.25)
+   parser.add_argument('path',help="Directory where WOA13 netcdf files are present")
+   parser.add_argument('sigma',type=int, help="Value of sigma...")
+   parser.add_argument('months',type=int,nargs="*",help="months to process for (1 to 12), all months processed if not present")
    args = parser.parse_args()
 
    # Set up AtmosphericForcing object, which keeps track of data to be read
-   main(args.path)
+   main(args.path,args.sigma,args.months,args.resolution)

@@ -24,6 +24,7 @@ logger.propagate=False # TODO: :Not sure why this is needed...
 _stefanb=5.67e-8
 _s0=1365.                 # w/m^2  solar constant
 _absh2o=0.09              # ---    absorption of water and ozone
+_airdns=1.2
 
 # Variable names known by this module
 _all_known_names = [
@@ -43,7 +44,8 @@ _all_known_names = [
       "wspd",
       "ustar",
       "sradtop",
-      "vapmix"
+      "vapmix",
+      "relhum"
       ]
 
 # Units used by internal calculations in this module
@@ -64,7 +66,8 @@ _assumed_units = {
       "wspd":"m s**-1",
       "ustar":"m s**-1",
       "sradtop":"W m**-2",
-      "vapmix":"kg kg**-1"
+      "vapmix":"kg kg**-1",
+      "relhum":"1"
       }
 
 class AtmosphericForcingError(Exception):
@@ -202,9 +205,14 @@ class AtmosphericForcing(object) :
    def calculate_windstress(self) :
       logger.info("Calculating wind stress (taux, tauy) from wind fields")
       if "10u" in self.known_names and "10v" in self.known_names :
-         self._fields["taux"] =  modeltools.tools.ForcingFieldCopy("taux","","taux","","dummy",accumulation_time=None,rootPath=None) 
-         self._fields["tauy"] =  modeltools.tools.ForcingFieldCopy("tauy","","tauy","","dummy",accumulation_time=None,rootPath=None) 
-         self._fielddata["taux"], self._fielddata["tauy"] = calculate_windstress(self.field["10u"].data,self.field["10v"].data)
+         #self._fields["taux"] =  modeltools.tools.ForcingFieldCopy("taux","","taux","","dummy",accumulation_time=None,rootPath=None) 
+         #self._fields["tauy"] =  modeltools.tools.ForcingFieldCopy("tauy","","tauy","","dummy",accumulation_time=None,rootPath=None) 
+         #self._fields["taux"], self._fields["tauy"] = windstress(self._fields["10u"].data,self._fields["10v"].data)
+         self._fields["taux"] =  modeltools.tools.ForcingFieldCopy("taux",self["10u"],_assumed_units["taux"])
+         self._fields["tauy"] =  modeltools.tools.ForcingFieldCopy("tauy",self["10v"],_assumed_units["tauy"])
+         tmp1,tmp2 = windstress(self["10u"].data,self["10v"].data)
+         self["taux"].set_data(tmp1)
+         self["tauy"].set_data(tmp2)
       else :
          raise AtmosphericForcingError,"Can not calculate wind stress without 10 meter winds"
 
@@ -271,6 +279,25 @@ class AtmosphericForcing(object) :
          raise AtmosphericForcingError,"Can not calculate SSRD"
 
 
+   def calculate_slp(self) :
+      logger.info("Calculating slp")
+      if "msl" in self.known_names :
+         self._fields["slp"]    = modeltools.tools.ForcingFieldCopy("slp",self["msl"],_assumed_units["msl"])
+         self["slp"].set_data( self["msl"].data * 1e-2)
+      else :
+         raise AtmosphericForcingError,"Can not calculate slp fields"
+
+
+   def calculate_relhum(self) :
+      logger.info("Calculating relhum")
+      if "2t" in self.known_names and "msl" in self.known_names and "2d" in self.known_names:
+         e = satvap(self["2d"].data)
+         ed= satvap(self["2t"].data)
+         self._fields["relhum"]    = modeltools.tools.ForcingFieldCopy("relhum",self["2t"],_assumed_units["relhum"])
+         self["relhum"].set_data(relhumid(e,ed,self["msl"].data))
+      else :
+         raise AtmosphericForcingError,"Can not calculate wind stress without 10 meter winds"
+
 
 
 #http://www.nersc.no/biblio/formulation-air-sea-fluxes-esop2-version-micom
@@ -320,14 +347,15 @@ def strd_maykut_jacobs(tair,cc) :
 
 
 def windstress(uwind,vwind) :
+   karalight=True
    ws=numpy.sqrt(uwind**2+vwind**2)
    if karalight :
-      wndfac=numpy.max(2.5,numpy.min(32.5,ws))
+      wndfac=numpy.maximum(2.5,numpy.minimum(32.5,ws))
       cd_new = 1.0E-3*(.692 + .0710*wndfac - .000700*wndfac**2)
    else :
       wndfac=(1.+sign(1.,ws-11.))*.5
       cd_new=(0.49+0.065*ws)*1.0e-3*wndfac+cd*(1.-wndfac)
-   wfact=ws*airdns*cd_new
+   wfact=ws*_airdns*cd_new
    taux = uwind*wfact
    tauy = vwind*wfact
    ustar = numpy.sqrt((taux**2+tauy**2)*1e-3)
@@ -339,8 +367,6 @@ def vapmix(e,p) :
    # Input is :
    # e = vapour pressure = saturation vapor pressure at dewpoint temperature 
    # p = air pressure
-   print e.shape , p.shape
-
    vapmix = 0.622 * e / (p-e)
    return vapmix
 
