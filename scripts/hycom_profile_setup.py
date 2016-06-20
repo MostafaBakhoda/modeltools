@@ -15,79 +15,118 @@ def main(blkdat_file):
    nhybrd=bp["nhybrd"]
    nsigma=bp["nsigma"]
 
-   dp00=bp["dp00"]
-   dp00x=bp["dp00x"]
-   dp00f=bp["dp00f"]
+   # Check for "dp0k" 
+   if bp["dp0k"] :
+      dp0k=bp["dp0k"]
+   else  :
+      # Create dp0k (deep z-level) from parameters
+      dp00=bp["dp00"]
+      dp00x=bp["dp00x"]
+      dp00f=bp["dp00f"]
+      dp0k=[]
+      for k in range(kdm) :
+         dp0k.append(dp00*dp00f**k)
+      dp0k=[min(elem,dp00x) for elem in dp0k]
+      dp0k=numpy.array(dp0k)
 
-   ds00=bp["ds00"]
-   ds00x=bp["ds00x"]
-   ds00f=bp["ds00f"]
+   # Check for "ds0k" 
+   if bp["ds0k"] :
+      ds0k=bp["ds0k"]
+   else  :
+      # Create ds0k (shallow z-level)  from parameters
+      ds00=bp["ds00"]
+      ds00x=bp["ds00x"]
+      ds00f=bp["ds00f"]
+      ds0k=[]
+      for k in range(kdm) :
+         ds0k.append(ds00*ds00f**k)
+      ds0k=[min(elem,ds00x) for elem in ds0k]
+      ds0k=numpy.array(ds0k)
+    
+   for i in dp0k : print "%12.3f "%i,
 
-   # Create dp0k (shallow z-level) and ds0k (deep z-level)
-   dp0k=[]
-   ds0k=[]
-   for k in range(1,kdm+1) :
-      dp0k.append(dp00*dp00f**(k-1))
-      ds0k.append(ds00*ds00f**(k-1))
-   dp0k=[min(elem,dp00x) for elem in dp0k]
-   ds0k=[min(elem,ds00x) for elem in ds0k]
-   dp0k=numpy.array(dp0k)
-   ds0k=numpy.array(ds0k)
-
+   # Interface from dp
    intf0k=numpy.zeros((kdm+1))
    intf0s=numpy.zeros((kdm+1))
-   for i in range(1,kdm) :
-      print i
-      intf0k[i] = intf0k[i-1] + dp0k[i]
-      intf0s[i] = intf0s[i-1] + ds0k[i]
-   print intf0k
-   print intf0s
+   for i in range(nsigma) :
+      intf0k[i+1] = intf0k[i] + dp0k[i]
+      intf0s[i+1] = intf0s[i] + ds0k[i]
+   #
+   for i in range(nsigma,kdm) :
+      intf0k[i+1] = intf0k[i] + dp0k[nsigma-1]
+      intf0s[i+1] = intf0s[i] + ds0k[nsigma-1]
+   #print intf0k
+   #print intf0s
 
-   ideep = numpy.sum(intf0k[0:nsigma]) # Starts
-   ishallow = numpy.sum(intf0s[0:nsigma]) # Ends
+   #ideep = numpy.sum(intf0k[0:nsigma+1]) # Starts
+   #ishallow = numpy.sum(intf0s[0:nsigma+1]) # Ends
+   ideep    = intf0k[nsigma+1]
+   ishallow = intf0s[nsigma+1]
 
-   x      = numpy.linspace(0., 30.*1000,60)
-   bottom = numpy.linspace(5., max(ishallow,ideep)+500.,x.shape[0]) + 100.*numpy.sin(x * 2*numpy.pi / 20000.)
-   #dp=numpy.zeros((intf0k.shape[0],bottom.shape[0]))
+   maxdeep = max(numpy.max(ishallow),numpy.max(ideep))
+   #print "maxdeep=",maxdeep
+#   print ishallow
+
+   x      = numpy.linspace(0., 30.*1000,120)
+   nx=x.size
+   bottom=numpy.zeros((nx))
+   bottom[:nx/2] = numpy.linspace(5., 100.,nx/2) + 80.*numpy.sin(x[0:nx/2] * 2*numpy.pi / 20000.)
+
+   bottom[nx/2:] = numpy.linspace(bottom[nx/2-1], 600.,nx/2)
+   bottom[nx/2:] = bottom[nx/2:] + 250.*numpy.sin((x[nx/2:]-x[nx/2-1]) * 2*numpy.pi / 20000.)
+   #bottom = numpy.hstack((bottom.transpose(),bottom2.transpose())).transpose()
+   #print bottom.shape
+   ##raise NameError,"test"
+
+   #bottom = numpy.linspace(5., 500.,x.shape[0])
    intf=numpy.zeros((bottom.shape[0],intf0k.shape[0]))
-   print intf.shape
 
-   print ideep
-   print ishallow
-   print bottom
    f_ishallow = ishallow/bottom
    f_ideep = ideep/bottom
 
    # Fixed shallow z_level
-   print f_ishallow.shape
-   I=numpy.where(f_ishallow>=1.)
-   print intf[I[0],:].shape
-   print I[0]
+   Imask=f_ishallow>=1.
+   I=numpy.where(Imask)
    intf[I[0],:] = intf0s
 
-
    # Fixed deep z_level
-   I=numpy.where(f_ideep<=1.)
-   print I[0]
-   intf[I[0],:] = intf0k
+   Jmask=f_ideep<=1.
+   J=numpy.where(Jmask)
+   intf[J[0],:] = intf0k
 
    #In between
-   I=numpy.where(numpy.logical_and(f_ishallow<1.,f_ideep>1.))
-   print I[0]
-   intf[I[0],:] = intf0k
-   tmp        = numpy.transpose(intf[I[0],:])*bottom[I[0]]/ideep
-   intf[I[0],:] = tmp.transpose()
+   Kmask=numpy.logical_and(f_ishallow<1.,f_ideep>1.)
+   K=numpy.where(Kmask)
+   intf[K[0],:] = intf0k
+   tmp        = numpy.transpose(intf[K[0],:])*bottom[K[0]]/ideep
+   intf[K[0],:] = tmp.transpose()
 
    intf = numpy.transpose(numpy.minimum(numpy.transpose(intf),bottom))
-
-
-
+   #print x.shape
+   #print intf.shape
    import matplotlib.pyplot as plt
-   plt.plot(-intf)
    ax=plt.gca()
-   ax.plot(-bottom,lw=4)
-   print ax
-   #plt.ylabel('some numbers')
+   ax.hold(True)
+   #print x
+   #print intf[Imask,-1],
+   #print intf[Imask,kdm-nsigma+1]
+
+   #ax.fill_between(x,intf[:,-1]*-1.,0.,color=".1",interpolate=False,where=Imask)
+   ax.fill_between(x,intf[:,nsigma+1]*-1.,0.,color="r",interpolate=False,where=Imask,label="Shallow z")
+   ax.fill_between(x,intf[:,nsigma+1]*-1.,0.,color="g",interpolate=False,where=Jmask,label="Sigma")
+   ax.fill_between(x,intf[:,nsigma+1]*-1.,0.,color="b",interpolate=False,where=Kmask,label="Deep z")
+   #ax.fill_between(x,intf[:,-1]*-1.,0.,color=".8",interpolate=False,where=Jmask)
+
+   for k in range(1,intf.shape[1]) :
+      #plt.plot(x,-intf[:,k],label=str(k))
+      if k%5 == 0 :
+         plt.plot(x,-intf[:,k],color=".5",linestyle="--",label=str(k+1))
+      else:
+         plt.plot(x,-intf[:,k],color=".5")
+
+   ax.plot(x,-bottom,lw=4,color="k")
+   ax.legend(fontsize=6)
+   ax.set_ylim(-50,0)
    plt.gcf().savefig("tst.png")
       
 

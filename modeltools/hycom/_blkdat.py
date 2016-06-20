@@ -36,6 +36,8 @@ class BlkdatParser(object) :
    def __init__(self,filename) :
 
       self._sigma    = []
+      self._dp0k     = []
+      self._ds0k     = []
       self._datadict = {}
       self._descdict = {}
       fid=open(filename,"r")
@@ -64,6 +66,10 @@ class BlkdatParser(object) :
          #print key
          if key == "sigma" :
             self._sigma.append(float(value))
+         elif key == "ds0k" :
+            self._ds0k.append(float(value))
+         elif key == "dp0k" :
+            self._dp0k.append(float(value))
          else  :
             self._datadict[key] = value
 
@@ -75,6 +81,10 @@ class BlkdatParser(object) :
    def __getitem__(self,i) :
       if i=="sigma" :
          return self._sigma
+      elif i=="dp0k" :
+         return self._dp0k
+      elif i=="ds0k" :
+         return self._ds0k
       elif i in self._integer_fields :
          return int(self._datadict[i])
       else :
