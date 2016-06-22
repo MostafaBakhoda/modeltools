@@ -1,7 +1,7 @@
 import cfunits
 
 # Our "standard" variable names, and how they map to hycom names
-atmosphere_variable_names = {
+variable_names = {
       "10u"     : "wndewd",
       "10v"     : "wndnwd",
       "2t"      : "airtmp",
@@ -16,7 +16,7 @@ atmosphere_variable_names = {
 
 
 # Units that are required by hycom (udunits)
-atmosphere_variable_units = {
+variable_units = {
       "10u"     : "m s**-1",
       "10v"     : "m s**-1",
       "2t"      : "degree_Celsius",
@@ -30,13 +30,19 @@ atmosphere_variable_units = {
       }
 
 
-atmosphere_variable_vectors = {
-      "taux" : ("taux","tauy"),
-      "10u"  : ("10u" ,"10v" )
+variable_limits = { 
+      "vapmix" : [0.,None],
+      "tp"     : [0.,None]
       }
 
 
 
-atmosphere_variable_cfunit = dict(
-      [(elem[0],cfunits.Units(elem[1])) for elem in atmosphere_variable_units.items() ]
-      )
+
+#atmosphere_variable_cfunit = dict(
+#      [(elem[0],cfunits.Units(elem[1])) for elem in atmosphere_variable_units.items() ]
+#      )
+#
+#def variable_cfunit(kn) :
+#   return cfunits.Units(atmosphere_variable_units[kn])
+#
+
