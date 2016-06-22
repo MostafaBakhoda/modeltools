@@ -1,8 +1,7 @@
 #!/usr/bin/env python
 import modeltools.hycom
 import argparse
-import datetime
-import modeltools.grid
+
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot
@@ -35,14 +34,11 @@ if __name__ == "__main__" :
 
    args = parser.parse_args()
 
-   #grid1=modeltools.grid.Proj4Grid(args.proj4_string,args.ll_lon,args.ll_lat,args.dx,args.dy,
-   #      args.nx,args.ny)
-
    #afile = modeltools.hycom.io.AFile(args.idm,args.jdm,args.filename,"r")
    afile = abfile.AFile(args.idm,args.jdm,args.filename,"r")
 
-   #cmap=matplotlib.pyplot.get_cmap("jet")
-   cmap=matplotlib.pyplot.get_cmap("YlOrRd")
+   cmap=matplotlib.pyplot.get_cmap("jet")
+   #cmap=matplotlib.pyplot.get_cmap("YlOrRd")
 
     
    for record in args.records :
