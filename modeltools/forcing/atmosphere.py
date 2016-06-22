@@ -70,6 +70,13 @@ _assumed_units = {
       "relhum":"1"
       }
 
+
+
+known_vectors = {
+      "taux" : ("taux","tauy"),
+      "10u"  : ("10u" ,"10v" )
+      }
+
 class AtmosphericForcingError(Exception):
     """Base class for exceptions in this module."""
     pass
@@ -291,12 +298,76 @@ class AtmosphericForcing(object) :
    def calculate_relhum(self) :
       logger.info("Calculating relhum")
       if "2t" in self.known_names and "msl" in self.known_names and "2d" in self.known_names:
-         e = satvap(self["2d"].data)
-         ed= satvap(self["2t"].data)
+         e = satvap(self["2t"].data)
+         ed= satvap(self["2d"].data)
+         #print self["2d"].data.max(),self["2t"].data.max(),self["msl"].data.max()
          self._fields["relhum"]    = modeltools.tools.ForcingFieldCopy("relhum",self["2t"],_assumed_units["relhum"])
-         self["relhum"].set_data(relhumid(e,ed,self["msl"].data))
+         self["relhum"].set_data(relhumid(e,ed,self["msl"].data)/100.)
       else :
          raise AtmosphericForcingError,"Can not calculate wind stress without 10 meter winds"
+
+
+   @property
+   def name(self) : return self._forcing_dataset
+
+
+
+
+class ForcingProperty(object) :
+   """Class that keeps some metadata about a forcing dataset"""
+   def __init__(self,known_name,variable_name,variable_unit,variable_limits,vector_info) :
+      self._known_name      = known_name
+      self._variable_name   = variable_name
+      self._variable_unit   = variable_unit
+      self._vector_info     = vector_info
+      self._variable_limits = variable_limits
+
+   def apply_limit(self,data) :
+      """ Apply specified limits to input data """
+      mydata=numpy.copy(data)
+      #print self._variable_limits
+      if self._variable_limits[0] is not None :
+         mydata = numpy.maximum(self._variable_limits[0],mydata)
+      if self._variable_limits[1] is not None :
+         mydata = numpy.minimum(self._variable_limits[1],mydata)
+      #print "jau",mydata
+      return mydata
+
+   @property
+   def name(self) :
+      return self._variable_name
+
+   @property
+   def cfunit(self) :
+      return cfunits.Units(self._variable_unit)
+
+   @property
+   def unit(self) :
+      return self._variable_unit
+
+
+class ForcingPropertySet(object) :
+   """Class that keeps some metadata about a dictionary of forcing dataset (uses ForcingProperty)"""
+   def __init__(self,variable_names,variable_units,variable_limits,vector_info) :
+      self._forcingproperties={}
+      for key in variable_names.keys() :
+         unit  = variable_units[key]
+         vname = variable_names[key]
+         vinfo =None
+         lims  =[None,None]
+         if key in vector_info.keys()     : vinfo = vector_info[key]
+         if key in variable_limits.keys() : lims  = variable_limits[key]
+         self._forcingproperties[key] = ForcingProperty(key,vname,unit,lims,vinfo)
+
+
+   def __getitem__(self,kn) : return self._forcingproperties[kn]
+   def keys(self) : return self._forcingproperties.keys()
+   def items(self) : return self._forcingproperties.items()
+
+
+
+
+      
 
 
 
