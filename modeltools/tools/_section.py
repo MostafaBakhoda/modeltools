@@ -326,14 +326,21 @@ class Section(object) :
       self._distance_along_section   =self._distance_along_section[I]
 
 
+   @property 
+   def grid_indexes(self) :
+      return self._section_i,self._section_j
 
+   @property 
+   def longitude(self) :
+      return self._section_longitudes
 
+   @property 
+   def latitude(self) :
+      return self._section_latitudes
 
-
-
-
-
-
+   @property 
+   def distance(self) :
+      return self._distance_along_section
 
    @property 
    def mask(self) :

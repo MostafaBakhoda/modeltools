@@ -108,20 +108,24 @@ def remove_isolated_basins(lon,lat,inv,lon0,lat0,threshold=_default_threshold) :
     import scipy.ndimage.measurements
 
     mask = inv < threshold
+    #print threshold,inv.min(),inv.max()
     labarray,num_features=scipy.ndimage.measurements.label(mask)
+    logger.info("Found %d features"%num_features)
     feat_count = {}
     for i in range(num_features):
        feat_count[i+1] = numpy.count_nonzero(labarray==i+1)
 
+
     # Order by feature count
     tmp = sorted(feat_count.items(), key=lambda x:x[1],reverse=True)
-    #for i in range(num_features) :
-    #   print "Feature %03d: %d cells" %tuple(tmp[i])
+    for i in tmp :
+       logger.info( "Feature %03d: %d cells" %(i[0],i[1]))
     main_feature = tmp[0][0] 
     logger.info("Main feature in terms of cells is feature %d"%main_feature)
 
     # Find points nearest to lon0, lat0
     outv=numpy.ones(inv.shape)*threshold
+    #outv=numpy.zeros(inv.shape)*threshold
     if len(lon0)> 0 :
        for lo,la in zip(lon0,lat0) :
          dist = numpy.sqrt((lo-lon)**2+(lat-la)**2) # close enough for this purpose
