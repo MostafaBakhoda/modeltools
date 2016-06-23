@@ -90,21 +90,25 @@ def main(blkdat_file):
    Imask=f_ishallow>1.
    I=numpy.where(Imask)
    print "Imask",Imask
-   intf[I[0],:nsigma] = intf0s[:nsigma]
+   intf[I[0],:nsigma+1] = intf0s[:nsigma+1]
 
    # Fixed deep z_level (nsigma deep z levels extend beyond ocean floor)
    Jmask=f_ideep>1.
-   J=numpy.where(Jmask)
+   J=numpy.where(~Jmask)
    print "Jmask",Jmask
-   intf[J[0],:nsigma] = intf0k[:nsigma]
+   #intf[J[0],:nsigma+1] = intf0k[:nsigma+1]
+   intf[J[0],:nhybrd+1] = intf0k[:nhybrd+1]
 
    # Sigma coordinates where sigma-th deep z levels is below ocean floor, and sigma-th shallow z level is above ocean floor
-   Kmask=numpy.logical_and(Imask,numpy.logical_not(Jmask))
+   Kmask=numpy.logical_and(Jmask,numpy.logical_not(Imask))
    print "Kmask",Kmask
    K=numpy.where(Kmask)
-   intf[K[0],:nsigma] = intf0k[:nsigma]
-   tmp        = numpy.transpose(intf[K[0],:nsigma])*bottom[K[0]]/ideep
-   intf[K[0],:nsigma] = tmp.transpose()
+   intf[K[0],:nsigma+1] = intf0k[:nsigma+1]
+   tmp        = numpy.transpose(intf[K[0],:nsigma+1])*bottom[K[0]]/ideep
+   intf[K[0],:nsigma+1] = tmp.transpose()
+
+   #print intf[:,-1] 
+   #print intf[:,nhybrd-1]
 
 
    intf = numpy.transpose(numpy.minimum(numpy.transpose(intf),bottom))
@@ -118,13 +122,12 @@ def main(blkdat_file):
    #print intf[Imask,kdm-nsigma+1]
 
    ax.fill_between(x,intf[:,nsigma]*-1.,0.,color="r",interpolate=False,where=Imask,label="Shallow z")
-   ax.fill_between(x,intf[:,nhybrd]*-1.,0.,color="b",interpolate=False,where=Jmask,label="Deep z")
+   ax.fill_between(x,intf[:,nhybrd]*-1.,0.,color="b",interpolate=False,where=~Jmask,label="Deep z")
    ax.fill_between(x,intf[:,nsigma]*-1.,0.,color="g",interpolate=False,where=Kmask,label="Sigma")
 
-   for k in range(1,intf.shape[1]) :
-      #plt.plot(x,-intf[:,k],label=str(k))
-      if k%5 == 0 :
-         plt.plot(x,-intf[:,k],color=".5",linestyle="--",label=str(k+1))
+   for k in range(intf.shape[1]) :
+      if (k+1)%5 == 0 :
+         plt.plot(x,-intf[:,k],color="k",linestyle="--",label=str(k+1))
       else:
          plt.plot(x,-intf[:,k],color=".5")
 
