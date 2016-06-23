@@ -1,10 +1,22 @@
 #!/usr/bin/env python
 ##!/usr/bin/python -E
 import modeltools.hycom
+import logging
 import argparse
 import datetime
 import numpy
 import os
+
+# Set up logger
+_loglevel=logging.DEBUG
+logger = logging.getLogger(__name__)
+logger.setLevel(_loglevel)
+formatter = logging.Formatter("%(asctime)s - %(name)10s - %(levelname)7s: %(message)s")
+ch = logging.StreamHandler()
+ch.setLevel(_loglevel)
+ch.setFormatter(formatter)
+logger.addHandler(ch)
+logger.propagate=False
 
 
 def main(blkdat_file):
@@ -14,6 +26,7 @@ def main(blkdat_file):
    kdm=bp["kdm"]
    nhybrd=bp["nhybrd"]
    nsigma=bp["nsigma"]
+   logger.info("%d layers, %d hybrid layers, %d sigma layers"%(kdm,nhybrd,nsigma))
 
    # Check for "dp0k" 
    if bp["dp0k"] :
@@ -49,57 +62,50 @@ def main(blkdat_file):
    intf0k=numpy.zeros((kdm+1))
    intf0s=numpy.zeros((kdm+1))
    for i in range(nsigma) :
-      intf0k[i+1] = intf0k[i] + dp0k[i]
       intf0s[i+1] = intf0s[i] + ds0k[i]
-   #
-   for i in range(nsigma,kdm) :
-      intf0k[i+1] = intf0k[i] + dp0k[nsigma-1]
-      intf0s[i+1] = intf0s[i] + ds0k[nsigma-1]
-   #print intf0k
-   #print intf0s
+   for i in range(nhybrd) :
+      intf0k[i+1] = intf0k[i] + dp0k[i]
+   print "intf0k:",intf0k
+   print "intf0s:",intf0s
 
-   #ideep = numpy.sum(intf0k[0:nsigma+1]) # Starts
-   #ishallow = numpy.sum(intf0s[0:nsigma+1]) # Ends
-   ideep    = intf0k[nsigma+1]
-   ishallow = intf0s[nsigma+1]
-
-   maxdeep = max(numpy.max(ishallow),numpy.max(ideep))
-   #print "maxdeep=",maxdeep
-#   print ishallow
-
+   # x and depth arrays
    x      = numpy.linspace(0., 30.*1000,120)
    nx=x.size
    bottom=numpy.zeros((nx))
    bottom[:nx/2] = numpy.linspace(5., 100.,nx/2) + 80.*numpy.sin(x[0:nx/2] * 2*numpy.pi / 20000.)
-
-   bottom[nx/2:] = numpy.linspace(bottom[nx/2-1], 600.,nx/2)
+   bottom[nx/2:] = numpy.linspace(bottom[nx/2-1], 2000.,nx/2)
    bottom[nx/2:] = bottom[nx/2:] + 250.*numpy.sin((x[nx/2:]-x[nx/2-1]) * 2*numpy.pi / 20000.)
-   #bottom = numpy.hstack((bottom.transpose(),bottom2.transpose())).transpose()
-   #print bottom.shape
-   ##raise NameError,"test"
-
    #bottom = numpy.linspace(5., 500.,x.shape[0])
+
+   #Initialize interfaces
    intf=numpy.zeros((bottom.shape[0],intf0k.shape[0]))
 
+   # Depth of deepest sigma interface, compared to bottom
+   ideep      = intf0k[nsigma]
+   ishallow   = intf0s[nsigma]
    f_ishallow = ishallow/bottom
-   f_ideep = ideep/bottom
+   f_ideep    = ideep/bottom
 
-   # Fixed shallow z_level
-   Imask=f_ishallow>=1.
+   # Fixed shallow z_level (nsigma shallow z levels extend beyond ocean floor)
+   Imask=f_ishallow>1.
    I=numpy.where(Imask)
-   intf[I[0],:] = intf0s
+   print "Imask",Imask
+   intf[I[0],:nsigma] = intf0s[:nsigma]
 
-   # Fixed deep z_level
-   Jmask=f_ideep<=1.
+   # Fixed deep z_level (nsigma deep z levels extend beyond ocean floor)
+   Jmask=f_ideep>1.
    J=numpy.where(Jmask)
-   intf[J[0],:] = intf0k
+   print "Jmask",Jmask
+   intf[J[0],:nsigma] = intf0k[:nsigma]
 
-   #In between
-   Kmask=numpy.logical_and(f_ishallow<1.,f_ideep>1.)
+   # Sigma coordinates where sigma-th deep z levels is below ocean floor, and sigma-th shallow z level is above ocean floor
+   Kmask=numpy.logical_and(Imask,numpy.logical_not(Jmask))
+   print "Kmask",Kmask
    K=numpy.where(Kmask)
-   intf[K[0],:] = intf0k
-   tmp        = numpy.transpose(intf[K[0],:])*bottom[K[0]]/ideep
-   intf[K[0],:] = tmp.transpose()
+   intf[K[0],:nsigma] = intf0k[:nsigma]
+   tmp        = numpy.transpose(intf[K[0],:nsigma])*bottom[K[0]]/ideep
+   intf[K[0],:nsigma] = tmp.transpose()
+
 
    intf = numpy.transpose(numpy.minimum(numpy.transpose(intf),bottom))
    #print x.shape
@@ -111,11 +117,9 @@ def main(blkdat_file):
    #print intf[Imask,-1],
    #print intf[Imask,kdm-nsigma+1]
 
-   #ax.fill_between(x,intf[:,-1]*-1.,0.,color=".1",interpolate=False,where=Imask)
-   ax.fill_between(x,intf[:,nsigma+1]*-1.,0.,color="r",interpolate=False,where=Imask,label="Shallow z")
-   ax.fill_between(x,intf[:,nsigma+1]*-1.,0.,color="g",interpolate=False,where=Jmask,label="Sigma")
-   ax.fill_between(x,intf[:,nsigma+1]*-1.,0.,color="b",interpolate=False,where=Kmask,label="Deep z")
-   #ax.fill_between(x,intf[:,-1]*-1.,0.,color=".8",interpolate=False,where=Jmask)
+   ax.fill_between(x,intf[:,nsigma]*-1.,0.,color="r",interpolate=False,where=Imask,label="Shallow z")
+   ax.fill_between(x,intf[:,nhybrd]*-1.,0.,color="b",interpolate=False,where=Jmask,label="Deep z")
+   ax.fill_between(x,intf[:,nsigma]*-1.,0.,color="g",interpolate=False,where=Kmask,label="Sigma")
 
    for k in range(1,intf.shape[1]) :
       #plt.plot(x,-intf[:,k],label=str(k))
@@ -126,9 +130,10 @@ def main(blkdat_file):
 
    ax.plot(x,-bottom,lw=4,color="k")
    ax.legend(fontsize=6)
-   ax.set_ylim(-50,0)
-   plt.gcf().savefig("tst.png")
+   plt.gcf().savefig("vcoord.png")
       
+   ax.set_ylim(-200,0)
+   plt.gcf().savefig("vcoord200.png")
 
    
 
