@@ -27,10 +27,13 @@ def my_fill_between(x, y1, y2=0, ax=None, **kwargs):
     so that it can be added it appears on a legend.
     """
     ax = ax if ax is not None else plt.gca()
+    label=kwargs["label"]
+    del kwargs["label"]
     ax.fill_between(x, y1, y2, **kwargs)
     del kwargs["where"]
     del kwargs["interpolate"]
-    print kwargs
+    #print kwargs
+    kwargs["label"]=label
     p = plt.Rectangle((0, 0), 0, 0, **kwargs)
     ax.add_patch(p)
     return p
@@ -82,15 +85,15 @@ def main(blkdat_file):
       intf0s[i+1] = intf0s[i] + ds0k[i]
    for i in range(nhybrd) :
       intf0k[i+1] = intf0k[i] + dp0k[i]
-   #print "intf0k:",intf0k
-   #print "intf0s:",intf0s
+
+   maxdepth = max(intf0k.max(),intf0s.max())
 
    # x and depth arrays
    x      = numpy.linspace(0., 30.*1000,120)
    nx=x.size
    bottom=numpy.zeros((nx))
    bottom[:nx/2] = numpy.linspace(5., 100.,nx/2) + 80.*numpy.sin(x[0:nx/2] * 2*numpy.pi / 20000.)
-   bottom[nx/2:] = numpy.linspace(bottom[nx/2-1], 2000.,nx/2)
+   bottom[nx/2:] = numpy.linspace(bottom[nx/2-1], maxdepth+500.,nx/2)
    bottom[nx/2:] = bottom[nx/2:] + 250.*numpy.sin((x[nx/2:]-x[nx/2-1]) * 2*numpy.pi / 20000.)
    #bottom = numpy.linspace(5., 500.,x.shape[0])
 
@@ -108,21 +111,27 @@ def main(blkdat_file):
    I=numpy.where(Imask)
    #print "Imask",Imask
    intf[I[0],:nsigma+1] = intf0s[:nsigma+1]
+   intf[I[0],nsigma+1:] = intf0s[nsigma]
 
    # Fixed deep z_level (nsigma deep z levels extend beyond ocean floor)
    Jmask=f_ideep>1.
    J=numpy.where(~Jmask)
    #print "Jmask",Jmask
-   #intf[J[0],:nsigma+1] = intf0k[:nsigma+1]
    intf[J[0],:nhybrd+1] = intf0k[:nhybrd+1]
+   intf[J[0],nhybrd+1:] = intf0k[nhybrd]
 
    # Sigma coordinates where sigma-th deep z levels is below ocean floor, and sigma-th shallow z level is above ocean floor
    Kmask=numpy.logical_and(Jmask,numpy.logical_not(Imask))
    #print "Kmask",Kmask
    K=numpy.where(Kmask)
    intf[K[0],:nsigma+1] = intf0k[:nsigma+1]
-   tmp        = numpy.transpose(intf[K[0],:nsigma+1])*bottom[K[0]]/ideep
-   intf[K[0],:nsigma+1] = tmp.transpose()
+   tmp        = numpy.transpose(intf[K[0],:])*bottom[K[0]]/ideep
+   tmp[nsigma+1:,] = tmp[nsigma,:]
+   intf[K[0],:] = tmp.transpose()
+
+   #tmp        = numpy.transpose(intf[K[0],:nsigma+1])*bottom[K[0]]/ideep
+   #intf[K[0],:nsigma+1] = tmp.transpose()
+   #intf[K[0],nsigma+1:] = intf[K[0],nsigma]
 
    #print intf[:,-1] 
    #print intf[:,nhybrd-1]
@@ -140,9 +149,10 @@ def main(blkdat_file):
    my_fill_between(x,intf[:,nsigma]*-1.,0.,ax,color="r",interpolate=False,where=Imask,label="Shallow z")
    my_fill_between(x,intf[:,nhybrd]*-1.,0.,ax,color="b",interpolate=False,where=~Jmask,label="Deep z")
    my_fill_between(x,intf[:,nsigma]*-1.,0.,ax,color="g",interpolate=False,where=Kmask,label="Sigma")
-   #ax.fill_between(x,intf[:,nsigma]*-1.,0.,color="r",interpolate=False,where=Imask,label="Shallow z")
-   #ax.fill_between(x,intf[:,nhybrd]*-1.,0.,color="b",interpolate=False,where=~Jmask,label="Deep z")
-   #ax.fill_between(x,intf[:,nsigma]*-1.,0.,color="g",interpolate=False,where=Kmask,label="Sigma")
+   if nhybrd <> kdm :
+      my_fill_between(x,-bottom,intf[:,nhybrd]*-1.,ax,color="c",interpolate=False,where=~Jmask,label="Isopycnal")
+      print -bottom,
+      print -intf[:,nhybrd]
 
    for k in range(intf.shape[1]) :
       if (k+1)%5 == 0 :
@@ -150,17 +160,19 @@ def main(blkdat_file):
       else:
          plt.plot(x,-intf[:,k],color=".5")
 
-      xpos = int(x.size*.8)
-      textx = x[xpos]
-      texty = -0.5*(intf[xpos,k-1] + intf[xpos,k])
-      ax.text(textx,texty,str(k),verticalalignment="center",horizontalalignment="center",fontsize=6)
+      if k>=1 :
+         xpos = int(x.size*.8)
+         textx = x[xpos]
+         texty = -0.5*(intf[xpos,k-1] + intf[xpos,k])
+         #print k,textx,texty,intf[xpos,k-1],intf[xpos,k]
+         ax.text(textx,texty,str(k),verticalalignment="center",horizontalalignment="center",fontsize=6)
 
    ax.plot(x,-bottom,lw=4,color="k")
    ax.legend(fontsize=6)
-   plt.gcf().savefig("vcoord.png")
+   plt.gcf().savefig("vcoord.png",dpi=180)
       
    ax.set_ylim(-200,0)
-   plt.gcf().savefig("vcoord200.png")
+   plt.gcf().savefig("vcoord200.png",dpi=180)
 
    
 
