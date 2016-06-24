@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 ##!/usr/bin/python -E
+import matplotlib.pyplot as plt
 import modeltools.hycom
 import logging
 import argparse
@@ -17,6 +18,22 @@ ch.setLevel(_loglevel)
 ch.setFormatter(formatter)
 logger.addHandler(ch)
 logger.propagate=False
+
+def my_fill_between(x, y1, y2=0, ax=None, **kwargs):
+    """Plot filled region between `y1` and `y2`.
+
+    This function works exactly the same as matplotlib's fill_between, except
+    that it also plots a proxy artist (specifically, a rectangle of 0 size)
+    so that it can be added it appears on a legend.
+    """
+    ax = ax if ax is not None else plt.gca()
+    ax.fill_between(x, y1, y2, **kwargs)
+    del kwargs["where"]
+    del kwargs["interpolate"]
+    print kwargs
+    p = plt.Rectangle((0, 0), 0, 0, **kwargs)
+    ax.add_patch(p)
+    return p
 
 
 def main(blkdat_file):
@@ -65,8 +82,8 @@ def main(blkdat_file):
       intf0s[i+1] = intf0s[i] + ds0k[i]
    for i in range(nhybrd) :
       intf0k[i+1] = intf0k[i] + dp0k[i]
-   print "intf0k:",intf0k
-   print "intf0s:",intf0s
+   #print "intf0k:",intf0k
+   #print "intf0s:",intf0s
 
    # x and depth arrays
    x      = numpy.linspace(0., 30.*1000,120)
@@ -89,19 +106,19 @@ def main(blkdat_file):
    # Fixed shallow z_level (nsigma shallow z levels extend beyond ocean floor)
    Imask=f_ishallow>1.
    I=numpy.where(Imask)
-   print "Imask",Imask
+   #print "Imask",Imask
    intf[I[0],:nsigma+1] = intf0s[:nsigma+1]
 
    # Fixed deep z_level (nsigma deep z levels extend beyond ocean floor)
    Jmask=f_ideep>1.
    J=numpy.where(~Jmask)
-   print "Jmask",Jmask
+   #print "Jmask",Jmask
    #intf[J[0],:nsigma+1] = intf0k[:nsigma+1]
    intf[J[0],:nhybrd+1] = intf0k[:nhybrd+1]
 
    # Sigma coordinates where sigma-th deep z levels is below ocean floor, and sigma-th shallow z level is above ocean floor
    Kmask=numpy.logical_and(Jmask,numpy.logical_not(Imask))
-   print "Kmask",Kmask
+   #print "Kmask",Kmask
    K=numpy.where(Kmask)
    intf[K[0],:nsigma+1] = intf0k[:nsigma+1]
    tmp        = numpy.transpose(intf[K[0],:nsigma+1])*bottom[K[0]]/ideep
@@ -114,22 +131,29 @@ def main(blkdat_file):
    intf = numpy.transpose(numpy.minimum(numpy.transpose(intf),bottom))
    #print x.shape
    #print intf.shape
-   import matplotlib.pyplot as plt
    ax=plt.gca()
    ax.hold(True)
    #print x
    #print intf[Imask,-1],
    #print intf[Imask,kdm-nsigma+1]
 
-   ax.fill_between(x,intf[:,nsigma]*-1.,0.,color="r",interpolate=False,where=Imask,label="Shallow z")
-   ax.fill_between(x,intf[:,nhybrd]*-1.,0.,color="b",interpolate=False,where=~Jmask,label="Deep z")
-   ax.fill_between(x,intf[:,nsigma]*-1.,0.,color="g",interpolate=False,where=Kmask,label="Sigma")
+   my_fill_between(x,intf[:,nsigma]*-1.,0.,ax,color="r",interpolate=False,where=Imask,label="Shallow z")
+   my_fill_between(x,intf[:,nhybrd]*-1.,0.,ax,color="b",interpolate=False,where=~Jmask,label="Deep z")
+   my_fill_between(x,intf[:,nsigma]*-1.,0.,ax,color="g",interpolate=False,where=Kmask,label="Sigma")
+   #ax.fill_between(x,intf[:,nsigma]*-1.,0.,color="r",interpolate=False,where=Imask,label="Shallow z")
+   #ax.fill_between(x,intf[:,nhybrd]*-1.,0.,color="b",interpolate=False,where=~Jmask,label="Deep z")
+   #ax.fill_between(x,intf[:,nsigma]*-1.,0.,color="g",interpolate=False,where=Kmask,label="Sigma")
 
    for k in range(intf.shape[1]) :
       if (k+1)%5 == 0 :
          plt.plot(x,-intf[:,k],color="k",linestyle="--",label=str(k+1))
       else:
          plt.plot(x,-intf[:,k],color=".5")
+
+      xpos = int(x.size*.8)
+      textx = x[xpos]
+      texty = -0.5*(intf[xpos,k-1] + intf[xpos,k])
+      ax.text(textx,texty,str(k),verticalalignment="center",horizontalalignment="center",fontsize=6)
 
    ax.plot(x,-bottom,lw=4,color="k")
    ax.legend(fontsize=6)

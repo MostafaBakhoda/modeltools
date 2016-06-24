@@ -52,7 +52,8 @@ def main(lon1,lat1,lon2,lat2,variable,files,filetype="archive",clim=None) :
    m.drawparallels(numpy.arange(-90.,120.,30.),labels=[1,0,0,0]) # draw parallels
    m.drawmeridians(numpy.arange(0.,420.,60.),labels=[0,0,0,1]) # draw meridians
    m.drawmapboundary() # draw a line around the map region
-   m.plot(x,y,"r",lw=3)
+   #m.plot(x,y,"r",lw=3)
+   m.scatter(x,y,s=20,c=dist)
    figure.canvas.print_figure("map.png")
 
    dpname = modeltools.hycom.layer_thickness_variable[filetype]
@@ -88,8 +89,6 @@ def main(lon1,lat1,lon2,lat2,variable,files,filetype="archive",clim=None) :
 
       for k in range(kdm) :
 
-
-
          dp2d=tmp.read_field(dpname,k+1)
          data2d=tmp.read_field(variable,k+1)
 
@@ -114,11 +113,16 @@ def main(lon1,lat1,lon2,lat2,variable,files,filetype="archive",clim=None) :
             PL=ax.plot(dist/1000.,-intfsec[k,:],"--",color="k")
          else :
             PL=ax.plot(dist/1000.,-intfsec[k,:],"-",color=".5")
+
+         textx = dist[dist.size/2]/1000.
+         texty = -0.5*(intfsec[k-1,dist.size/2] + intfsec[k,dist.size/2])
+         #print "textx,texty",textx,texty
+         ax.text(textx,texty,str(k),verticalalignment="center",horizontalalignment="center",fontsize=6)
       ax.figure.colorbar(P)
-      matplotlib.pyplot.tight_layout()
       ax.set_title(myfile)
       ax.set_ylabel(variable)
       ax.set_xlabel("distance along section [km]")
+      matplotlib.pyplot.tight_layout()
       figure.canvas.print_figure("sec_%s_full_%s.png"%(variable,myfile))
 
       ax.set_ylim(-1000,0)
