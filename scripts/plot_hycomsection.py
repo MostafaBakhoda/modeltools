@@ -15,6 +15,7 @@ from mpl_toolkits.basemap import Basemap
 import netCDF4
 import logging
 import re
+import os.path
 
 # Set up logger
 _loglevel=logging.DEBUG
@@ -32,7 +33,6 @@ logger.propagate=False
 def main(lon1,lat1,lon2,lat2,variable,files,filetype="archive",clim=None) :
 
    print filetype
-
    gfile = abfile.ABFileGrid("regional.grid","r")
    plon=gfile.read_field("plon")
    plat=gfile.read_field("plat")
@@ -88,6 +88,7 @@ def main(lon1,lat1,lon2,lat2,variable,files,filetype="archive",clim=None) :
       datasec=numpy.zeros((kdm+1,I.size))
 
       for k in range(kdm) :
+         logger.info("File %s, layer %03d/%03d"%(myfile,k,kdm))
 
          dp2d=tmp.read_field(dpname,k+1)
          data2d=tmp.read_field(variable,k+1)
@@ -123,13 +124,13 @@ def main(lon1,lat1,lon2,lat2,variable,files,filetype="archive",clim=None) :
       ax.set_ylabel(variable)
       ax.set_xlabel("distance along section [km]")
       matplotlib.pyplot.tight_layout()
-      figure.canvas.print_figure("sec_%s_full_%s.png"%(variable,myfile))
+      figure.canvas.print_figure("sec_%s_full_%s.png"%(variable,os.path.basename(myfile)))
 
       ax.set_ylim(-1000,0)
-      figure.canvas.print_figure("sec_%s_1000m_%s.png"%(variable,myfile))
+      figure.canvas.print_figure("sec_%s_1000m_%s.png"%(variable,os.path.basename(myfile)))
 
       ax.set_ylim(-300,0)
-      figure.canvas.print_figure("sec_%s_300m_%s.png"%(variable,myfile))
+      figure.canvas.print_figure("sec_%s_300m_%s.png"%(variable,os.path.basename(myfile)))
 
 
       tmp.close()

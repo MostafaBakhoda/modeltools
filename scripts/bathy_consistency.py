@@ -26,7 +26,7 @@ logger.addHandler(ch)
 logger.propagate=False
 
 
-def main(infile,blo,bla) :
+def main(infile,blo,bla,remove_isolated_basins=True,remove_one_neighbour_cells=True,remove_islets=True) :
 
    bathy_threshold=0. # TODO
 
@@ -37,22 +37,24 @@ def main(infile,blo,bla) :
    gfile.close()
 
    # Read input bathymetri
-   bfile=abfile.ABFileBathy(infile,"r",idm=gfile.idm,jdm=gfile.jdm)
-   in_depth=bfile.read_field("depth",None)
+   bfile=abfile.ABFileBathy(infile,"r",idm=gfile.idm,jdm=gfile.jdm,mask=True)
+   in_depth_m=bfile.read_field("depth")
+   print "in_depth_m type, min, max:",type(in_depth_m),in_depth_m.min(),in_depth_m.max()
    bfile.close()
 
 
 
    # Modify basin 
-   depth=-1.*numpy.copy(in_depth)
-   in_depth_m=numpy.ma.masked_where(depth>=bathy_threshold,in_depth)
+   in_depth=numpy.ma.filled(in_depth_m,bathy_threshold)
+   depth=numpy.copy(in_depth)
+   print "depth min max",depth.min(),depth.max()
    it=1
-   while it==1 or numpy.count_nonzero(depth-depth_old) > 0 :
+   while it==1 or numpy.count_nonzero(numpy.abs(depth-depth_old)) > 0 :
       depth_old = numpy.copy(depth)
       logger.info("Basin modifications ... pass %d"%(it))
-      depth=modeltools.tools.remove_isolated_basins(plon,plat,depth,blo,bla,threshold=bathy_threshold)
-      depth=modeltools.tools.remove_islets(depth,threshold=bathy_threshold)
-      depth=modeltools.tools.remove_one_neighbour_cells(depth,threshold=bathy_threshold)
+      if remove_isolated_basins     : depth=modeltools.tools.remove_isolated_basins(plon,plat,depth,blo,bla,threshold=bathy_threshold)
+      if remove_islets              : depth=modeltools.tools.remove_islets(depth,threshold=bathy_threshold)
+      if remove_one_neighbour_cells : depth=modeltools.tools.remove_one_neighbour_cells(depth,threshold=bathy_threshold)
       logger.info("Modified %d points "%numpy.count_nonzero(depth-depth_old) )
       it+=1
    w5=numpy.copy(depth)
@@ -62,15 +64,10 @@ def main(infile,blo,bla) :
    w5[:,-1]=bathy_threshold
    w5[0,:]=bathy_threshold
    w5[-1,:]=bathy_threshold
+   print "w5 type min max",type(w5),w5.min(),w5.max()
 
    # Mask data where depth below threshold
-   w5=numpy.ma.masked_where(w5>=bathy_threshold,w5)
-
-   # Print to HYCOM and CICE bathymetry files
-   abfile.write_bathymetry("NEW",0,-w5,-bathy_threshold)
-   kmt=numpy.where(~w5.mask,1.,0.)
-   logger.info("Writing cice mask to file cice_kmt.nc")
-   modeltools.cice.io.write_netcdf_kmt(kmt,"cice_kmt.nc")
+   w5_m=numpy.ma.masked_where(w5<=bathy_threshold,w5)
 
    # Create netcdf file with all  stages for analysis
    logger.info("Writing bathymetry to file bathy_consistency.nc")
@@ -88,21 +85,27 @@ def main(infile,blo,bla) :
    ncid.variables["lat"][:]=plat
    ncid.variables["old"][:]=in_depth
    ncid.variables["old_masked"][:]=in_depth_m
-   ncid.variables["new"][:]=-depth
-   ncid.variables["new_masked"][:]=-w5
-   modmask=numpy.abs(in_depth-(-depth))>.1
+   ncid.variables["new"][:]=w5
+   ncid.variables["new_masked"][:]=w5_m
+   modmask=numpy.abs(in_depth-depth)>.1
    ncid.variables["modified"][:]=modmask.astype("i4")
    ncid.close()
    
    logger.info("Writing bathymetry plot to file newbathy.png")
    figure = matplotlib.pyplot.figure(figsize=(8,8))
    ax=figure.add_subplot(111)
-   P=ax.pcolormesh(w5)
-   figure.colorbar(P,norm=matplotlib.colors.LogNorm(vmin=w5.min(), vmax=w5.max()))
-   I,J=numpy.where(numpy.abs(in_depth-(-depth))>.1)
+   P=ax.pcolormesh(w5_m)
+   figure.colorbar(P,norm=matplotlib.colors.LogNorm(vmin=w5_m.min(), vmax=w5_m.max()))
+   I,J=numpy.where(numpy.abs(modmask)>.1)
    ax.scatter(J,I,20,"r")
    figure.canvas.print_figure("newbathy.png")
 
+
+   # Print to HYCOM and CICE bathymetry files
+   abfile.write_bathymetry("CONSISTENT",0,w5,bathy_threshold)
+   kmt=numpy.where(w5_m.mask,1.,0.)
+   logger.info("Writing cice mask to file cice_kmt.nc")
+   modeltools.cice.io.write_netcdf_kmt(kmt,"cice_kmt.nc")
 
 
 
@@ -117,6 +120,9 @@ if __name__ == "__main__" :
        setattr(args, self.dest, tmp1)
 
    parser = argparse.ArgumentParser(description='Ensure consistenct of HYCOM bathy files')
+   parser.add_argument('--no_remove_isolated_basins'    , action="store_true", default=False)
+   parser.add_argument('--no_remove_islets'             , action="store_true", default=False)
+   parser.add_argument('--no_remove_one_neighbour_cells', action="store_true", default=False)
    parser.add_argument('--basin_point', nargs="*", action=PointParseAction,default=[])
    parser.add_argument('infile', type=str)
    args = parser.parse_args()
@@ -127,4 +133,8 @@ if __name__ == "__main__" :
    else :
       blo=[]
       bla=[]
-   main(args.infile,blo,bla)
+   main(args.infile,blo,bla,
+         remove_isolated_basins    =not args.no_remove_isolated_basins,
+         remove_islets             =not args.no_remove_islets        ,
+         remove_one_neighbour_cells=not args.no_remove_one_neighbour_cells,
+         )
