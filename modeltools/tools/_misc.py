@@ -51,22 +51,41 @@ def shapiro_filter(w,threshold=_default_threshold,S=_default_S) :
 
 
 
-def remove_one_neighbour_cells(inv,threshold=_default_threshold) :
+def remove_one_neighbour_cells(inv,threshold=_default_threshold,num_neighbour=1) :
+   """ Sets cells with values above "threshold" to threshold value if it has less  
+       than or equal to num_neighbour neighbours """
+
    v = numpy.copy(inv) 
    v[-1,:] = threshold
    v[0,:] = threshold
    v[:,-1] = threshold
    v[:,0] = threshold
+   
+   # Test
+   #v[100,100]=threshold+1
+   #v[100, 99]=threshold-1
+   #v[100,101]=threshold-1
+   #v[ 99,100]=threshold-1
+   #v[101,100]=threshold-1
+
    I=[[-1]]
    while len(I[0])>0 :
-      v0   = v[1:-1,1:-1] < threshold
-      vim1 = numpy.where(v[:-2,1:-1]< threshold,1,0)
-      vip1 = numpy.where(v[2:,1:-1] < threshold,1,0)
-      vjm1 = numpy.where(v[1:-1,:-2]< threshold,1,0)
-      vjp1 = numpy.where(v[1:-1,2:] < threshold,1,0)
+
+      # 1 if above threshold
+      v0   = v[1:-1,1:-1] > threshold
+
+      # Neighbours. 1 if above threshold
+      vim1 = numpy.where(v[:-2,1:-1]> threshold,1,0)
+      vip1 = numpy.where(v[2:,1:-1] > threshold,1,0)
+      vjm1 = numpy.where(v[1:-1,:-2]> threshold,1,0)
+      vjp1 = numpy.where(v[1:-1,2:] > threshold,1,0)
+
+      # Sum up neighbours
       tmp = vim1 + vip1 + vjm1 + vjp1
-      I = numpy.where(numpy.logical_and(tmp<=1, v0  ))
-      logger.info("Found %d one neighbour cells"%I[0].size)
+
+      # If number of neighbours <=num_neighbour, set cell value to threshold
+      I = numpy.where(numpy.logical_and(tmp<=num_neighbour, v0  ))
+      logger.info("Found %d %d-neighbour cells"%(I[0].size,num_neighbour))
       if I[0].size > 0 :
          #print v[I]
          #print I[0].size,tmp.min(),tmp.max()
@@ -74,7 +93,10 @@ def remove_one_neighbour_cells(inv,threshold=_default_threshold) :
          v[1:-1,1:-1][I] = threshold
    return v
 
-def remove_islets(inv,threshold=_default_threshold) :
+def remove_islets(inv,threshold=_default_threshold,num_neighbours=4) :
+   """ Remove islets and return modified inv 
+   Routine Sets cells with values below threshold to mean of neighbours value if it has more than num_neighbours valid neighbours
+   """
    v = numpy.copy(inv) 
    v[-1,:] = threshold
    v[0,:] = threshold
@@ -82,19 +104,24 @@ def remove_islets(inv,threshold=_default_threshold) :
    v[:,0] = threshold
    I=[[-1]]
    while len(I[0])>0 :
-      v0   = v[1:-1,1:-1] >= threshold
 
-      fim1 = numpy.where(v[:-2,1:-1]< threshold,1,0)
-      fip1 = numpy.where(v[2:,1:-1] < threshold,1,0)
-      fjm1 = numpy.where(v[1:-1,:-2]< threshold,1,0)
-      fjp1 = numpy.where(v[1:-1,2:] < threshold,1,0)
+      # Points with values below or at threshold
+      v0   = v[1:-1,1:-1] <= threshold
 
+      # Neighbouring points above threshold
+      fim1 = numpy.where(v[:-2,1:-1]> threshold,1,0)
+      fip1 = numpy.where(v[2:,1:-1] > threshold,1,0)
+      fjm1 = numpy.where(v[1:-1,:-2]> threshold,1,0)
+      fjp1 = numpy.where(v[1:-1,2:] > threshold,1,0)
 
+      # Sum of neighbours above threshold
       tmp = fim1 + fip1 + fjm1 + fjp1
-      I = numpy.where(numpy.logical_and(tmp>=3, v0  ))
+      #I = numpy.where(numpy.logical_and(tmp>=3, v0  ))
+      #I = numpy.where(numpy.logical_and(tmp==4, v0  ))
+      I = numpy.where(numpy.logical_and(tmp>=num_neighbours, v0  ))
       logger.info("Found %d islets"%I[0].size)
 
-
+      # Set islet value to mean of neighbours
       if I[0].size > 0 :
          vim1 = v[:-2,1:-1][I] * fim1[I]
          vip1 = v[2:,1:-1] [I] * fip1[I]
@@ -105,10 +132,16 @@ def remove_islets(inv,threshold=_default_threshold) :
 
 
 def remove_isolated_basins(lon,lat,inv,lon0,lat0,threshold=_default_threshold) :
+    """ Find separated regions where inv > threshold.
+
+    If lon0,lat0 is not empty , include regions that contains the points in these arrays
+    If lon0,lat0 is     empty , include only the biggest region (in terms of grid cells)
+    Returns modified inv, where excluded regions are set to the threshold value
+    """
     import scipy.ndimage.measurements
 
-    mask = inv < threshold
-    #print threshold,inv.min(),inv.max()
+    mask = inv > threshold
+    print numpy.count_nonzero(mask),mask.size
     labarray,num_features=scipy.ndimage.measurements.label(mask)
     logger.info("Found %d features"%num_features)
     feat_count = {}
@@ -125,12 +158,11 @@ def remove_isolated_basins(lon,lat,inv,lon0,lat0,threshold=_default_threshold) :
 
     # Find points nearest to lon0, lat0
     outv=numpy.ones(inv.shape)*threshold
-    #outv=numpy.zeros(inv.shape)*threshold
     if len(lon0)> 0 :
        for lo,la in zip(lon0,lat0) :
          dist = numpy.sqrt((lo-lon)**2+(lat-la)**2) # close enough for this purpose
          I = numpy.argmin(dist)
-         if I and inv.flatten()[I] < threshold :
+         if I and inv.flatten()[I] > threshold :
             i,j=numpy.unravel_index(I,inv.shape)
             feature=labarray[i,j]
             logger.info( "Position (%7.3f,%7.3f) : Feature %d is used"%(lo,la,feature))
