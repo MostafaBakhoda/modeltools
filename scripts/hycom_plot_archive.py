@@ -43,14 +43,25 @@ def main(myfiles,fieldname,fieldlevel,idm=None,jdm=None,clim=None,filetype="arch
       #   tmp = abfile.ABFileRestart(myfile,"r",idm=gfile.idm,jdm=gfile.jdm)
       else :
          raise NotImplementedError,"Filetype %s not implemented"%filetype
+
+      if fieldname not in  ab.fieldnames :
+         logger.error("Unknown field %s at level %d"%(fieldname,fieldlevel))
+         logger.error("Available fields : %s"%(" ".join(ab.fieldnames)))
+         raise ValueError,"Unknown field %s at level %d"%(fieldname,fieldlevel)
+
        
       fld = ab.read_field(fieldname,fieldlevel)
+
+
+
       figure = matplotlib.pyplot.figure(figsize=(8,8))
       ax=figure.add_subplot(111)
       #P=ax.pcolormesh(fld)
       #P=ax.pcolormesh(fld[2200:2800,3500:4500],cmap=cmap)
       P=ax.pcolormesh(fld,cmap=cmap)
       ax.figure.colorbar(P)
+      if clim is not None : P.set_clim(clim)
+
       ax.set_title("%s:%s(%d)"%(myfile0,fieldname,fieldlevel))
 
 
