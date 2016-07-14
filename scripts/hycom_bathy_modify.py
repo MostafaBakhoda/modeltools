@@ -5,15 +5,13 @@ import datetime
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot
-import modeltools.forcing.bathy
-#import modeltools.hycom.io
 import abfile
-import modeltools.cice.io
 import numpy
 from mpl_toolkits.basemap import Basemap
 import netCDF4
 import logging
 import sys
+import re
 
 # Set up logger
 _loglevel=logging.DEBUG
@@ -88,9 +86,6 @@ def main(intopo) :
 
    # Print to HYCOM and CICE bathymetry files
    abfile.write_bathymetry("MODIFIED",0,depth,bathy_threshold)
-   #kmt=numpy.where(w5_m.mask,1.,0.)
-   #logger.info("Writing cice mask to file cice_kmt.nc")
-   #modeltools.cice.io.write_netcdf_kmt(kmt,"cice_kmt.nc")
 
 
 
@@ -99,4 +94,12 @@ if __name__ == "__main__" :
    parser = argparse.ArgumentParser(description='Ensure consistenct of HYCOM bathy files')
    parser.add_argument('intopo', type=str)
    args = parser.parse_args()
-   main(args.intopo)
+
+   
+   m = re.match("(.*)(\.[ab]{1})$",args.intopo) 
+   if m :
+      intopo=m.group(1)
+   else :
+      intopo=args.intopo
+
+   main(intopo)

@@ -5,14 +5,12 @@ import datetime
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot
-import modeltools.forcing.bathy
-#import modeltools.hycom.io
 import abfile
-import modeltools.cice.io
 import numpy
 from mpl_toolkits.basemap import Basemap
 import netCDF4
 import logging
+import re
 
 # Set up logger
 _loglevel=logging.DEBUG
@@ -103,11 +101,6 @@ def main(infile,blo,bla,remove_isolated_basins=True,remove_one_neighbour_cells=T
 
    # Print to HYCOM and CICE bathymetry files
    abfile.write_bathymetry("CONSISTENT",0,w5,bathy_threshold)
-   kmt=numpy.where(w5_m.mask,1.,0.)
-   logger.info("Writing cice mask to file cice_kmt.nc")
-   modeltools.cice.io.write_netcdf_kmt(kmt,"cice_kmt.nc")
-
-
 
 
 if __name__ == "__main__" :
@@ -126,6 +119,12 @@ if __name__ == "__main__" :
    parser.add_argument('--basin_point', nargs="*", action=PointParseAction,default=[])
    parser.add_argument('infile', type=str)
    args = parser.parse_args()
+   
+   m = re.match("(.*)(\.[ab]{1})$",args.infile) 
+   if m :
+      infile=m.group(1)
+   else :
+      infile=args.infile
 
    if args.basin_point :
       blo = [elem[0] for elem in args.basin_point]
@@ -133,7 +132,7 @@ if __name__ == "__main__" :
    else :
       blo=[]
       bla=[]
-   main(args.infile,blo,bla,
+   main(infile,blo,bla,
          remove_isolated_basins    =not args.no_remove_isolated_basins,
          remove_islets             =not args.no_remove_islets        ,
          remove_one_neighbour_cells=not args.no_remove_one_neighbour_cells,
