@@ -496,8 +496,10 @@ def haversine(lon1,lat1,lon2,lat2) :
    dlat=lat2-lat1
    dlon=dlon*deg2rad
    dlat=dlat*deg2rad
-   a=numpy.sin(dlat/2.)**2 + numpy.cos(lon1*deg2rad) * numpy.cos(lon2*deg2rad) * numpy.sin(dlon/2.)**2
-   c=2.*numpy.arctan2(numpy.sqrt(a),numpy.sqrt(1.-a))
+   #a=numpy.sin(dlat/2.)**2 + numpy.cos(lon1*deg2rad) * numpy.cos(lon2*deg2rad) * numpy.sin(dlon/2.)**2
+   a=numpy.sin(dlat/2.)**2 + numpy.cos(lat1*deg2rad) * numpy.cos(lat2*deg2rad) * numpy.sin(dlon/2.)**2
+   #c=2.*numpy.arctan2(numpy.sqrt(a),numpy.sqrt(1.-a))
+   c=2.*numpy.arcsin(numpy.sqrt(a))
    d=6371000.*c
    return d
 
