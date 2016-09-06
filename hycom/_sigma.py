@@ -1,3 +1,6 @@
+
+
+# Sigma class. NB: This is the standard 7-term approach
 class Sigma(object) :
 
    DTHIRD=1.0/3.0
@@ -15,13 +18,13 @@ class Sigma(object) :
          self.C6= 3.43570E-05
          self.C7= 3.48658E-05
       elif flag == 2 :
-         self.C1=-1.36471E-01
-         self.C2= 4.68181E-02
-         self.C3= 8.07004E-01
-         self.C4=-7.45353E-03
-         self.C5=-2.94418E-03,
-         self.C6= 3.43570E-05
-         self.C7= 3.48658E-05
+         self.C1= 9.77093E+00#  !const. coefficent
+         self.C2=-2.26493E-02#  !T      coefficent
+         self.C3= 7.89879E-01#  !   S   coefficent
+         self.C4=-6.43205E-03#  !T^2    coefficent
+         self.C5=-2.62983E-03#  !T  S   coefficent
+         self.C6= 2.75835E-05#  !T^3    coefficent
+         self.C7= 3.15235E-05#  !T^2S   coefficent
       else :
          raise ValueError,"flag<>0 not implemented"
 

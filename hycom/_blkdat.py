@@ -31,7 +31,7 @@ class BlkdatParser(object) :
       "dswflg","albflg","sssflg","sstflg","lwflag","icmflg",",slprs","stroff","flxoff",
       "flxsmo","relax","trcrlx","priver","epmass"]
    _float_fields = [ "dp00", "dp00x", "dp00f", "ds00", "ds00x", "ds00f", "isotop", "saln0",
-                     "cplifq", "slip", "baclin", "batrop"]
+                     "cplifq", "slip", "baclin", "batrop","dp00i"]
       
    def __init__(self,filename) :
 
@@ -78,6 +78,11 @@ class BlkdatParser(object) :
          elif key in  self._float_fields :
             self._datadict[key] = float(self._datadict[key])
 
+      # Create ds0k and dp0k from info in blkdat.input
+      self._ds0k= self._ds0k_profile()
+      self._dp0k= self._dp0k_profile()
+
+
    def __getitem__(self,i) :
       if i=="sigma" :
          return self._sigma
@@ -89,6 +94,116 @@ class BlkdatParser(object) :
          return int(self._datadict[i])
       else :
          return self._datadict[i]
+
+
+   def _dp0k_profile(self) :
+      if self["dp0k"] :
+         dp0k=self["dp0k"]
+      else  :
+         # Create dp0k (deep z-level) from parameters
+         dp00=self["dp00"]
+         dp00x=self["dp00x"]
+         dp00f=self["dp00f"]
+         dp0k=[]
+         for k in range(self["kdm"]) :
+            dp0k.append(dp00*dp00f**k)
+         dp0k=[min(elem,dp00x) for elem in dp0k]
+         dp0k=numpy.array(dp0k)
+      dp0k[self["nhybrd"]:]=self["dp00i"]
+      return dp0k
+
+
+   def _ds0k_profile(self) :
+      # Check for "ds0k" 
+      if self["ds0k"] :
+         ds0k=self["ds0k"]
+      else  :
+         # Create ds0k (shallow z-level)  from parameters
+         ds00=self["ds00"]
+         ds00x=self["ds00x"]
+         ds00f=self["ds00f"]
+         ds0k=[]
+         for k in range(self["kdm"]) :
+            ds0k.append(ds00*ds00f**k)
+         ds0k=[min(elem,ds00x) for elem in ds0k]
+         ds0k=numpy.array(ds0k)
+      ds0k[self["nsigma"]:]=self["dp00i"]
+      ds0k[self["nhybrd"]:]=self["dp00i"]
+      return ds0k
+
+   @property
+   def intf_deep(self) :
+      """ Min layer thickness for deep z-level """
+      dp0k=self["dp0k"]
+      intf0k=numpy.zeros((self["kdm"]+1))
+      for i in range(self["nhybrd"]) :
+         intf0k[i+1] = intf0k[i] + dp0k[i]
+      return intf0k
+
+   @property
+   def intf_shallow(self) :
+      """ Min layer thickness for shallow z-level """
+      ds0k=self["ds0k"]
+      intf0s=numpy.zeros((self["kdm"]+1))
+      for i in range(self["nsigma"]) :
+         intf0s[i+1] = intf0s[i] + ds0k[i]
+      intf0s[self["nsigma"]:] = intf0s[self["nsigma"]-1]
+      return intf0s
+
+
+   def intf_min_profile(self,bottom) :
+      """ From an input layer profile, set up min thickness interfaces appropriate for pathymetry """
+      kdm   =self["kdm"]
+      nsigma=self["nsigma"]
+      nhybrd=self["nhybrd"]
+      intf_shallow = self.intf_shallow
+      intf_deep    = self.intf_deep
+      intf=numpy.zeros(tuple(list(bottom.shape,)+[self["kdm"]+1]))
+
+      # Depth of deepest sigma interface, compared to bottom
+      ideep        = intf_deep   [self["nsigma"]]
+      ishallow     = intf_shallow[self["nsigma"]]
+      f_ishallow   = ishallow/bottom
+      f_ideep      = ideep/bottom
+
+      # Case 1) Fixed shallow z_level (nsigma shallow z levels extend beyond ocean floor)
+      Imask=f_ishallow>=1.
+      I=numpy.where(Imask)
+      intf[Imask,:nsigma+1] = intf_shallow[:nsigma+1]
+      intf[Imask,nsigma+1:] = intf_shallow[nsigma]
+
+      # Case 2) Fixed deep z_level (nsigma deep z levels above ocean floor)
+      Jmask=f_ideep<=1.
+      J=numpy.where(Jmask)
+      intf[Jmask,:nhybrd+1] = intf_deep[:nhybrd+1]
+      intf[Jmask,nhybrd+1:] = intf_deep[nhybrd]
+
+      # Case 3) Sigma coordinates where sigma-th deep z levels is below ocean floor, and sigma-th shallow z level is above ocean floor
+      itest=52
+      ktest=10
+
+      # Squeeze deep layers. Ooook... Thought this should work, but apparently not always?! 
+      #Kmask=numpy.logical_and(~Jmask,~Imask)
+      #intf[Kmask,:nsigma+1] = intf_deep[:nsigma+1]
+      #tmp        = numpy.transpose(intf[Kmask,:])/f_ideep[Kmask]
+      #tmp[nsigma+1:,] = tmp[nsigma,:]
+      #intf[Kmask,:] = tmp.transpose()
+      #
+      # Stretch shallow layers. This works 
+      Kmask=numpy.logical_and(~Jmask,~Imask)
+      intf[Kmask,:nsigma+1] = intf_shallow[:nsigma+1]
+      tmp        = numpy.transpose(intf[Kmask,:])/f_ishallow[Kmask]
+      tmp[nsigma+1:,] = tmp[nsigma,:]
+      intf[Kmask,:] = tmp.transpose()
+
+      #intf = numpy.transpose(numpy.minimum(numpy.transpose(intf),bottom))
+      intf = numpy.transpose(numpy.minimum(numpy.transpose(intf),bottom.transpose()))
+      return intf,{"Shallow z":Imask,"Deep z":Jmask,"Sigma":Kmask}
+
+
+
+
+          
 
 
 

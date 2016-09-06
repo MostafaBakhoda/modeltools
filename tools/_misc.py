@@ -1,5 +1,6 @@
 import logging
 import numpy
+import pyproj
 
 _default_threshold=-5.
 _default_S=0.25
@@ -174,9 +175,36 @@ def remove_isolated_basins(lon,lat,inv,lon0,lat0,threshold=_default_threshold) :
 
 
 
+def spherdist_haversine(lon1,lat1,lon2,lat2) :
+   """ Sphere distance using haversine formula"""
+   deg2rad = numpy.pi / 180.
+   dlon=lon2-lon1
+   dlat=lat2-lat1
+   h=hav(dlat*deg2rad) + numpy.cos(lat1*deg2rad) * numpy.cos(lat2*deg2rad) * hav(dlon*deg2rad)
+   return 2.* 6371000 * numpy.arcsin(numpy.sqrt(h))
    
 
 
-
-    
+def hav(theta) :
+   """ Haversine. theta in radians """
+   return numpy.sin(theta*.5)**2
    
+
+def p_azimuth(plon1,plat1,plon2,plat2) :
+   tmp = fwd_azimuth( plon1,plat1,plon2,plat2)
+   # Compass angle -> angle rel lat line
+   tmp = numpy.radians(90-tmp)
+   # Put in range [-pi,pi)
+   tmp = numpy.where(tmp >= numpy.pi,tmp-2*numpy.pi,tmp) # Safest option
+   tmp = numpy.where(tmp < -numpy.pi,tmp+2*numpy.pi,tmp) # Safest option
+   #mult = max(-tmp.min()/numpy.pi,1)
+   #mult = 2*(mult/2) + 1                                # use any odd number as long as tmp+mult*numpy.pi > 0...
+   #tmp = numpy.fmod(tmp+9*numpy.pi,2*numpy.pi)-numpy.pi # use any odd number as long as tmp+mult*numpy.pi > 0...
+   return tmp
+
+def fwd_azimuth(lon1,lat1,lon2,lat2) : 
+   geod=pyproj.Geod(ellps="sphere")
+   az1,az2,dist = geod.inv(lon1,lat1,lon2,lat2)
+   return az1
+
+
