@@ -93,6 +93,16 @@ def dayfor(iyear,iday,ihour,yrflag) :
    return dtime
 
 
+def dayfor_datetime(iyear,iday,ihour,yrflag) :
+   dtime=dayfor(iyear,iday,ihour,yrflag) 
+   if yrflag == 3 :
+      tmp =datetime.datetime(1901,1,1,0,0,0)
+      return tmp + datetime.timedelta(days=dtime)
+   else :
+      raise NotImplementedError,"yrflag = %d"%yrflag
+
+
+
 def forday(dtime,yrflag) :
    """ converts model day to "calendar" date (year,ordinal-day,hour). """
 
@@ -139,6 +149,16 @@ def forday(dtime,yrflag) :
    return iyear, iday, ihour
 
 
+
+def forday_datetime(dtime,yrflag) :
+   print dtime
+   iy,id,ih=forday(dtime,yrflag) 
+   print iy,id,ih
+   if yrflag == 3 :
+      tmp =datetime.datetime(iy,1,1,0,0,0)
+      return tmp + datetime.timedelta(days=id-1) + datetime.timedelta(hours=ih)
+   else :
+      raise NotImplementedError,"yrflag = %d"%yrflag
 
 
 

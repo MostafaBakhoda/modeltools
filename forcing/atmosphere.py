@@ -244,8 +244,9 @@ class AtmosphericForcing(object) :
 
    def calculate_vapmix(self) :
       logger.info("Calculating vapmix")
-      if "2t" in self.known_names and "msl" in self.known_names and "2d" in self.known_names:
-         e = satvap(self["2d"].data)
+      #if "2t" in self.known_names and "msl" in self.known_names and "2d" in self.known_names:
+      if "msl" in self.known_names and "2d" in self.known_names:
+         e = satvap(self["2d"].data) 
          self._fields["vapmix"]    = modeltools.tools.ForcingFieldCopy("vapmix",self["2t"],_assumed_units["vapmix"])
          self["vapmix"].set_data(vapmix(e,self["msl"].data))
       else :
@@ -436,7 +437,7 @@ def windstress(uwind,vwind) :
 
 def vapmix(e,p) :
    # Input is :
-   # e = vapour pressure = saturation vapor pressure at dewpoint temperature 
+   # e = vapour pressure (partial pressure of vapour)
    # p = air pressure
    vapmix = 0.622 * e / (p-e)
    return vapmix
@@ -462,8 +463,17 @@ def satvap(t) :
    #   c3 = 17.269
    #   c4 = 35.86
    #endif
-   c3 = numpy.where(t < t00,21.875,7.66)
-   c4 = numpy.where(t < t00,17.269,35.86)
+   #KAL !!! c3 = numpy.where(t < t00,21.875,7.66)
+   #KAL !!! c4 = numpy.where(t < t00,17.269,35.86)
+
+   # Old hycom
+   #c3 = numpy.where(t < t00, 21.875,17.269)
+   #c4 = numpy.where(t < t00,  7.66, 35.86)
+
+   # From newest IFS (CY41R2)
+   c3 = numpy.where(t < t00, 22.587,17.502)
+   c4 = numpy.where(t < t00, -0.7  ,32.19)
+
    aa = c3 * (t - t00)
    bb = t - c4
    cc=aa/bb

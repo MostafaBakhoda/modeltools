@@ -80,7 +80,7 @@ class FieldInterpolator(object) :
 
 
 class FieldInterpolatorBilinear(FieldInterpolator)  :
-   def __init__(self,x,y,fld,targetx,targety,x_is_longitude=True) :
+   def __init__(self,x,y,targetx,targety,x_is_longitude=True) :
       super(FieldInterpolatorBilinear,self).__init__(x,y,targetx,targety,x_is_longitude=x_is_longitude)
       self._calc_bilinear_weights()
 
@@ -141,7 +141,7 @@ class FieldInterpolatorBilinear(FieldInterpolator)  :
 
 
 class FieldInterpolatorRectBivariateSpline(FieldInterpolator)  :
-   def __init__(self,x,y,field,targetx,targety,x_is_longitude=True) :
+   def __init__(self,x,y,targetx,targety,x_is_longitude=True) :
       super(FieldInterpolatorRectBivariateSpline,self).__init__(x,y,targetx,targety,x_is_longitude=x_is_longitude)
       tmp=numpy.array(field)
       if self._flipx :

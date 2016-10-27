@@ -4,6 +4,9 @@ import sys
 import logging
 import re
 
+
+# TODO: Add writer
+
 class BlkdatError(Exception):
     """Base class for exceptions in this module."""
     pass
@@ -159,15 +162,18 @@ class BlkdatParser(object) :
       intf_shallow = self.intf_shallow
       intf_deep    = self.intf_deep
       intf=numpy.zeros(tuple(list(bottom.shape,)+[self["kdm"]+1]))
+      logger.info("shallow z-level interface[nsigma+1]: %5.1f"%intf_shallow[nsigma])
+      logger.info("Deep    z-level interface[nsigma+1]: %5.1f"%intf_deep[nsigma])
 
       # Depth of deepest sigma interface, compared to bottom
       ideep        = intf_deep   [self["nsigma"]]
       ishallow     = intf_shallow[self["nsigma"]]
-      f_ishallow   = ishallow/bottom
-      f_ideep      = ideep/bottom
+      f_ishallow   = ishallow/numpy.maximum(bottom,1e-4)
+      f_ideep      = ideep/numpy.maximum(bottom,1e-4)
+      msk0=bottom<1e-4
 
       # Case 1) Fixed shallow z_level (nsigma shallow z levels extend beyond ocean floor)
-      Imask=f_ishallow>=1.
+      Imask=f_ishallow>=1. 
       I=numpy.where(Imask)
       intf[Imask,:nsigma+1] = intf_shallow[:nsigma+1]
       intf[Imask,nsigma+1:] = intf_shallow[nsigma]
@@ -195,6 +201,9 @@ class BlkdatParser(object) :
       tmp        = numpy.transpose(intf[Kmask,:])/f_ishallow[Kmask]
       tmp[nsigma+1:,] = tmp[nsigma,:]
       intf[Kmask,:] = tmp.transpose()
+
+      # Interfaces are 0 where depth is 0
+      intf[msk0,:]=0.
 
       #intf = numpy.transpose(numpy.minimum(numpy.transpose(intf),bottom))
       intf = numpy.transpose(numpy.minimum(numpy.transpose(intf),bottom.transpose()))
