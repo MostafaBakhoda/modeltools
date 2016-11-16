@@ -88,7 +88,7 @@ class AtmosphericForcingError(Exception):
 class AtmosphericForcing(object) :
    # These are the fileds this routine knows about, and can use to calculate new fields
 
-   def __init__(self,configfile,forcing_dataset) :
+   def __init__(self,configfile,forcing_dataset,rootpath="") :
       self._configfile = configfile
       self._forcing_dataset=forcing_dataset
       self._tree=xml.etree.ElementTree.ElementTree(file=configfile)
@@ -104,9 +104,12 @@ class AtmosphericForcing(object) :
       # Parse the  Self._element attributes 
       self._rootPath = None
       self._element=elements[0]
-      self._rootPath = self._element.attrib["rootPath"]
+      if not rootpath :
+          self._rootPath = self._element.attrib["rootPath"]
+      else :
+          self._rootPath = rootpath
       self._timestep = self._element.attrib["timestep"]
-      if "rootPath" in self._element.attrib.keys(): self._rootPath = self._element.attrib["rootPath"]
+      #if "rootPath" in self._element.attrib.keys(): self._rootPath = self._element.attrib["rootPath"]
 
      
       if self._timestep[-1] == "h" :
