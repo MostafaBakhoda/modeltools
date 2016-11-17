@@ -34,7 +34,7 @@ class BlkdatParser(object) :
       "dswflg","albflg","sssflg","sstflg","lwflag","icmflg",",slprs","stroff","flxoff",
       "flxsmo","relax","trcrlx","priver","epmass"]
    _float_fields = [ "dp00", "dp00x", "dp00f", "ds00", "ds00x", "ds00f", "isotop", "saln0",
-                     "cplifq", "slip", "baclin", "batrop","dp00i"]
+                     "cplifq", "slip", "baclin", "batrop","dp00i","nestfq","bnstfq"]
       
    def __init__(self,filename) :
 

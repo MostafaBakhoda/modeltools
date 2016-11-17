@@ -212,9 +212,6 @@ class AtmosphericForcing(object) :
    def calculate_windstress(self) :
       logger.info("Calculating wind stress (taux, tauy) from wind fields")
       if "10u" in self.known_names and "10v" in self.known_names :
-         #self._fields["taux"] =  modeltools.tools.ForcingFieldCopy("taux","","taux","","dummy",accumulation_time=None,rootPath=None) 
-         #self._fields["tauy"] =  modeltools.tools.ForcingFieldCopy("tauy","","tauy","","dummy",accumulation_time=None,rootPath=None) 
-         #self._fields["taux"], self._fields["tauy"] = windstress(self._fields["10u"].data,self._fields["10v"].data)
          self._fields["taux"] =  modeltools.tools.ForcingFieldCopy("taux",self["10u"],_assumed_units["taux"])
          self._fields["tauy"] =  modeltools.tools.ForcingFieldCopy("tauy",self["10v"],_assumed_units["tauy"])
          tmp1,tmp2 = windstress(self["10u"].data,self["10v"].data)
@@ -244,7 +241,6 @@ class AtmosphericForcing(object) :
 
    def calculate_vapmix(self) :
       logger.info("Calculating vapmix")
-      #if "2t" in self.known_names and "msl" in self.known_names and "2d" in self.known_names:
       if "msl" in self.known_names and "2d" in self.known_names:
          e = satvap(self["2d"].data) 
          self._fields["vapmix"]    = modeltools.tools.ForcingFieldCopy("vapmix",self["2t"],_assumed_units["vapmix"])
