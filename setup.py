@@ -17,7 +17,7 @@ setup(
     license = "MIT",
     keywords = "hycom model",
     url = "http://github.com/knutalnersc/modeltools",
-    packages=['modeltools','modeltools.hycom','modeltools.cice','modeltools.forcing','modeltools.nemo','tools'],
+    packages=['modeltools','modeltools.hycom','modeltools.cice','modeltools.forcing','modeltools.nemo','modeltools.tools'],
     long_description=read('README'),
     classifiers=[
         "Development Status :: 3 - Alpha",
