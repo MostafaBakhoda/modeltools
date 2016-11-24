@@ -142,7 +142,7 @@ def remove_isolated_basins(lon,lat,inv,lon0,lat0,threshold=_default_threshold) :
     import scipy.ndimage.measurements
 
     mask = inv > threshold
-    print numpy.count_nonzero(mask),mask.size
+    #print numpy.count_nonzero(mask),mask.size
     labarray,num_features=scipy.ndimage.measurements.label(mask)
     logger.info("Found %d features"%num_features)
     feat_count = {}
@@ -172,6 +172,41 @@ def remove_isolated_basins(lon,lat,inv,lon0,lat0,threshold=_default_threshold) :
        logger.info( "No control points given, using main feature")
        outv = numpy.where(labarray==main_feature,inv,outv)
     return outv
+
+def remove_inconsistent_nesting_zone(depth,threshold=_default_threshold) :
+    """ 
+    Find points near the boundary where 1st edge cell is land, 2nd edge cell is ocean,  but 3rd and 4th cell out 
+    may be land.  python indices start from 0
+    """
+
+    # test
+    #depth[1,10]=100.
+    #depth[2,10]=0.
+    #depth[3,10]=0.
+
+    dubious_i2   = depth[:, 1] > threshold
+    dubious_iim1 = depth[:,-2] > threshold
+    dubious_j2   = depth[ 1,:] > threshold
+    dubious_jjm1 = depth[-2,:] > threshold
+    for k in range(1,3) :
+       dubious_i2     = numpy.logical_and(dubious_i2  ,depth[:,1+k]  <= threshold)
+       dubious_iim1   = numpy.logical_and(dubious_iim1,depth[:,-2-k] <= threshold)
+       dubious_j2     = numpy.logical_and(dubious_j2  ,depth[1+k,:]  <= threshold)
+       dubious_jjm1   = numpy.logical_and(dubious_jjm1,depth[-2-k,:] <= threshold)
+
+    depth[dubious_i2 , 1:4]=threshold
+    depth[dubious_iim1,1:4]=threshold
+    depth[1:4,dubious_j2  ]=threshold
+    depth[1:4,dubious_jjm1]=threshold
+
+    logger.info("Found %d inconsistent nesting points in western  edge"%( numpy.count_nonzero(dubious_i2)))
+    logger.info("Found %d inconsistent nesting points in eastern  edge"%( numpy.count_nonzero(dubious_iim1)))
+    logger.info("Found %d inconsistent nesting points in southern edge"%( numpy.count_nonzero(dubious_j2)))
+    logger.info("Found %d inconsistent nesting points in northern edge"%( numpy.count_nonzero(dubious_jjm1)))
+
+    return depth
+
+
 
 
 
