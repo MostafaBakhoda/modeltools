@@ -10,6 +10,8 @@ variable_names = {
       "tp"      : "precip",
       "ssrd"    : "shwflx",
       "strd"    : "radflx",
+      "ssr"     : "nswrad",
+      "str"     : "nlwrad",
       "taux"    : "taux",
       "tauy"    : "tauy"
       }
@@ -25,6 +27,8 @@ variable_units = {
       "tp"      : "m s**-1",
       "ssrd"    : "W m**-2",
       "strd"    : "W m**-2",
+      "ssr"     : "W m**-2",
+      "str"     : "W m**-2",
       "taux"    : "N m**-2",
       "tauy"    : "N m**-2"
       }

@@ -39,6 +39,8 @@ _all_known_names = [
       "ro",
       "ssrd",
       "strd",
+      "ssr",
+      "str",
       "taux",
       "tauy",
       "wspd",
@@ -61,6 +63,8 @@ _assumed_units = {
       "ro":"1",
       "ssrd":"W m**-2",
       "strd":"W m**-2",
+      "ssr":"W m**-2",
+      "str":"W m**-2",
       "taux":"N m**-2",
       "tauy":"N m**-2",
       "wspd":"m s**-1",
@@ -286,6 +290,48 @@ class AtmosphericForcing(object) :
          raise AtmosphericForcingError,"Can not calculate SSRD"
 
 
+#MOSTAFA: BEGIN
+
+   def calculate_strd_bignami(self) :
+      logger.info("Calculating nersc downwelling strd (Bignami 1995)")
+      # Calculates downwelling longwave radiation
+      if "tcc" in self.known_names and "2t" in self.known_names and "2d" in self.known_names :
+         e = satvap(self["2d"].data)
+         self._fields["strd"]    = modeltools.tools.ForcingFieldCopy("strd",self["2d"],_assumed_units["strd"])
+         self._fields["strd"].set_data(strd_bignami(self["2t"].data,e,self["tcc"].data))
+      else :
+         raise AtmosphericForcingError,"Can not calculate TSRD"
+   # Here I decompose the net lonwave radiation formulation into two parts: (1) term with no SST effect; (2) term with effects from SST
+   # The SST here is from either observation or atmospheric model result.
+   def calculate_lwrad_budyko(self) :
+      logger.info("Calculating nersc downwelling strd (Budyko 1974)")
+      # Calculates downwelling longwave radiation
+      if "tcc" in self.known_names and "2t" in self.known_names and "2d" in self.known_names :
+         e = satvap(self["2d"].data)
+         lo,la= self["tcc"].grid
+         self._fields["lwrad"]    = modeltools.tools.ForcingFieldCopy("strd",self["2d"],_assumed_units["strd"])
+         self._fields["lwrad"].set_data(lwrad_budyko(la,self["2t"].data,e,self["tcc"].data))
+      else :
+         raise AtmosphericForcingError,"Can not calculate TSRD"
+
+
+   def calculate_lwrad_berliand(self) :
+      logger.info("Calculating downwelling lwrad (Berliand (1952)")
+      # Calculates downwelling longwave radiation
+      if "tcc" in self.known_names and "2t" in self.known_names and "2d" in self.known_names :
+         e = satvap(self["2d"].data)
+         lo,la= self["tcc"].grid
+         self._fields["lwrad"]    = modeltools.tools.ForcingFieldCopy("strd",self["2d"],_assumed_units["strd"])
+         self._fields["lwrad"].set_data(lwrad_berliand(self["2t"].data,e,self["tcc"].data))
+      else :
+         raise AtmosphericForcingError,"Can not calculate TSRD"
+
+#
+#     TODO: more options will be appeared here
+#
+#MOSTAFA: END
+
+
    def calculate_slp(self) :
       logger.info("Calculating slp")
       if "msl" in self.known_names :
@@ -368,7 +414,68 @@ class ForcingPropertySet(object) :
 
 
       
+#MOSTAFA: BEGIN
 
+
+def lwrad_berliand(tair,e,cc) :
+   # downwelling longwave radiation
+   #tair : air temperature [K]
+   #e    : near surface vapor pressure [Pa]
+   #cc   : cloud cover (0-1)
+
+   # Below formula assumes pressure in mBar
+   e_mbar = e * 0.01
+   emiss=0.97
+   # Clear sky downwelling longwave flux from Eimova(1961)
+   strd = emiss*_stefanb * tair**4 * (0.39-0.05*numpy.sqrt(e_mbar))
+
+   # Cloud correction by Berliand (1952)
+   strd = strd * (1. - 0.6823 * cc*cc)
+
+   return strd
+
+
+def strd_bignami(tair,e,cc) :
+   # downwelling longwave radiation
+   #tair : air temperature [K]
+   #e    : near surface vapor pressure [Pa]
+   #cc   : cloud cover (0-1)
+
+   # Below formula assumes pressure in mBar (1hPa=1 mbar; 1Pas=0.01mbar)
+   e_mbar = e * 0.01
+   emiss=0.97
+   # Clear sky downwelling longwave flux from Bignami(1995)
+   strd = _stefanb * tair**4 * (0.653+0.00535*e_mbar)
+
+   # Cloud correction by Berliand (1952)
+   strd = strd * (1. + 0.1762 * cc*cc)
+
+   return strd
+
+
+def lwrad_budyko(lat,tair,e,cc) :
+   # downwelling longwave radiation
+   #tair : air temperature [K]
+   #e    : near surface vapor pressure [Pa]
+   #cc   : cloud cover (0-1)
+
+   et=611.*10.**(7.5*(tair-273.16)/(tair-35.86))
+#   print numpy.max(tair),numpy.max(et),numpy.max(e)
+#   exit(0)
+   # Below formula assumes pressure in mBar
+   emiss=0.97
+   deg2rad = numpy.pi/180.
+   # Clear sky downwelling longwave flux from Budyko(1961)
+   chi = 0.5+0.246*numpy.abs(lat*deg2rad)
+   cc_cliped=numpy.minimum(1.0,numpy.maximum(cc,0.))
+   term1=(0.254-4.95e-5*et)*(1.0-chi*cc_cliped**(1.2) )
+   strd = emiss*_stefanb * tair**4 * (term1)
+
+
+   return strd
+
+
+#MOSTAFA: END
 
 
 #http://www.nersc.no/biblio/formulation-air-sea-fluxes-esop2-version-micom
